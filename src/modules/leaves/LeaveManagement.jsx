@@ -1,0 +1,689 @@
+import React, { useState, useEffect } from 'react';
+import {
+  CalendarOff,
+  Plus,
+  Search,
+  Filter,
+  CheckCircle2,
+  XCircle,
+  Clock,
+  RefreshCw,
+  Trash2,
+  Calendar,
+  AlertCircle,
+  UserCheck,
+  ShieldCheck,
+  Building2,
+  ArrowRight,
+  Sparkles,
+} from 'lucide-react';
+import { Button } from '../../components/common/Button';
+import { Badge } from '../../components/common/Badge';
+import { StatCard } from '../../components/common/StatCard';
+import { ConfirmDialog } from '../../components/common/ConfirmDialog';
+import { LoadingSpinner } from '../../components/common/LoadingSpinner';
+import { LeaveModal } from './LeaveModal';
+import {
+  getLeaveRequests,
+  createLeaveRequest,
+  approveLeaveByDeptHead,
+  approveLeaveFinal,
+  rejectLeave,
+  deleteLeaveRequest,
+  getDepartments,
+  getEmployees,
+} from '../../utils/dbHelpers';
+import { formatDate, getEmployeeDisplayName } from '../../utils/formatters';
+import { useToast } from '../../context/ToastContext';
+
+export const LeaveManagement = () => {
+  const [leaves, setLeaves] = useState([]);
+  const [departments, setDepartments] = useState([]);
+  const [employees, setEmployees] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [actionLoading, setActionLoading] = useState(false);
+
+  // Filters & Tabs
+  const [workflowTab, setWorkflowTab] = useState('all'); // 'all' | 'stage1' | 'stage2' | 'approved' | 'rejected'
+  const [deptFilter, setDeptFilter] = useState('');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [typeFilter, setTypeFilter] = useState('');
+
+  // Modals state
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState(null);
+  const [modalError, setModalError] = useState(null);
+
+  const { showToast } = useToast();
+
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const [leaveList, deptList, empList] = await Promise.all([
+        getLeaveRequests(),
+        getDepartments(),
+        getEmployees(),
+      ]);
+      setLeaves(leaveList || []);
+      setDepartments(deptList || []);
+      setEmployees(empList || []);
+    } catch (err) {
+      showToast(err.message || 'Error loading leave records', 'error');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const handleSaveLeave = async (formData) => {
+    try {
+      setActionLoading(true);
+      setModalError(null);
+      await createLeaveRequest(formData);
+      showToast('Leave request submitted successfully (Stage 1: Dept Head Review)', 'success');
+      setIsModalOpen(false);
+      await loadData();
+    } catch (err) {
+      const errMsg = err.message || 'Failed to submit leave request';
+      setModalError(errMsg);
+      showToast(errMsg, 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Stage 1: Department Head Approval
+  const handleDeptHeadApprove = async (id) => {
+    try {
+      setActionLoading(true);
+      await approveLeaveByDeptHead(id);
+      showToast('Endorsed by Department Head! Moved to Stage 2 (Final HR Approval)', 'success');
+      await loadData();
+    } catch (err) {
+      showToast(err.message || 'Failed to approve as Department Head', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Stage 2: Final HR / Management Approval
+  const handleFinalApprove = async (id) => {
+    try {
+      setActionLoading(true);
+      await approveLeaveFinal(id);
+      showToast('Final HR Approval Granted! Request is now Fully Approved', 'success');
+      await loadData();
+    } catch (err) {
+      showToast(err.message || 'Failed to grant final approval', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Rejection by either approver
+  const handleReject = async (id, roleName) => {
+    try {
+      setActionLoading(true);
+      await rejectLeave(id, roleName);
+      showToast(`Leave request rejected by ${roleName}`, 'info');
+      await loadData();
+    } catch (err) {
+      showToast(err.message || 'Failed to reject leave request', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  const handleDeleteLeave = async () => {
+    if (!deleteId) return;
+    try {
+      setActionLoading(true);
+      await deleteLeaveRequest(deleteId);
+      showToast('Leave request deleted successfully', 'success');
+      setDeleteId(null);
+      await loadData();
+    } catch (err) {
+      showToast(err.message || 'Failed to delete leave request', 'error');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
+  // Workflow counts
+  // Stage 1: Pending Dept Head Review (head_approved is false/null and status is Pending)
+  const stage1Leaves = leaves.filter(
+    (l) => l.status === 'Pending' && !l.head_approved
+  );
+
+  // Stage 2: Pending Final HR Approval (head_approved is true and final_approved is false and status is Pending)
+  // Strictly respects rule: "Do not allow the next-level approver to see pending requests before Department Head approval."
+  const stage2Leaves = leaves.filter(
+    (l) => l.status === 'Pending' && Boolean(l.head_approved) && !l.final_approved
+  );
+
+  // Fully Approved: head_approved and final_approved are true, or status === 'Approved'
+  const fullyApprovedLeaves = leaves.filter(
+    (l) => l.status === 'Approved'
+  );
+
+  // Rejected
+  const rejectedLeaves = leaves.filter((l) => l.status === 'Rejected');
+
+  // Filter list based on selected tab and filters
+  const filteredLeaves = leaves.filter((l) => {
+    const emp = l.employees || employees.find((e) => String(e.id) === String(l.employee_id));
+    const empName = getEmployeeDisplayName(emp).toLowerCase();
+    const empDept = (emp?.department || '').toLowerCase();
+
+    const matchesSearch =
+      empName.includes(searchTerm.toLowerCase()) ||
+      (l.reason && l.reason.toLowerCase().includes(searchTerm.toLowerCase()));
+
+    const matchesDept = deptFilter
+      ? empDept === deptFilter.toLowerCase()
+      : true;
+
+    const matchesType = typeFilter ? l.leave_type === typeFilter : true;
+
+    // Workflow tab filtering
+    let matchesTab = true;
+    if (workflowTab === 'stage1') {
+      matchesTab = l.status === 'Pending' && !l.head_approved;
+    } else if (workflowTab === 'stage2') {
+      matchesTab = l.status === 'Pending' && Boolean(l.head_approved) && !l.final_approved;
+    } else if (workflowTab === 'approved') {
+      matchesTab = l.status === 'Approved';
+    } else if (workflowTab === 'rejected') {
+      matchesTab = l.status === 'Rejected';
+    }
+
+    return matchesSearch && matchesDept && matchesType && matchesTab;
+  });
+
+  return (
+    <div className="space-y-6 animate-in fade-in duration-300">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-extrabold text-[#2D3250] flex items-center gap-2">
+            <CalendarOff className="w-6 h-6 text-[#FFB17A]" />
+            Two-Level Leave Approval Workflow
+          </h1>
+          <p className="text-xs text-[#676F9D] mt-0.5">
+            Stage 1: Department Head Review &bull; Stage 2: Final HR / Executive Approval
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            icon={RefreshCw}
+            onClick={loadData}
+            title="Refresh requests"
+          >
+            Refresh
+          </Button>
+          <Button
+            variant="accent"
+            size="md"
+            icon={Plus}
+            onClick={() => {
+              setModalError(null);
+              setIsModalOpen(true);
+            }}
+            className="font-bold shadow-md"
+          >
+            Apply for Leave
+          </Button>
+        </div>
+      </div>
+
+      {/* KPI Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
+        <div
+          onClick={() => setWorkflowTab('stage1')}
+          className={`cursor-pointer transition-all rounded-2xl bg-white p-5 border shadow-sm ${
+            workflowTab === 'stage1' ? 'border-[#FFB17A] ring-2 ring-[#FFB17A]/30' : 'border-gray-100'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#676F9D]">
+              Stage 1: Dept Head
+            </span>
+            <UserCheck className="w-5 h-5 text-amber-500" />
+          </div>
+          <div className="mt-2 text-2xl font-black text-[#2D3250]">
+            {stage1Leaves.length}
+          </div>
+          <p className="text-[11px] text-amber-600 font-medium mt-0.5">
+            Pending Dept Head endorsement
+          </p>
+        </div>
+
+        <div
+          onClick={() => setWorkflowTab('stage2')}
+          className={`cursor-pointer transition-all rounded-2xl bg-white p-5 border shadow-sm ${
+            workflowTab === 'stage2' ? 'border-[#424769] ring-2 ring-[#424769]/30' : 'border-gray-100'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#676F9D]">
+              Stage 2: Final HR
+            </span>
+            <ShieldCheck className="w-5 h-5 text-[#676F9D]" />
+          </div>
+          <div className="mt-2 text-2xl font-black text-[#2D3250]">
+            {stage2Leaves.length}
+          </div>
+          <p className="text-[11px] text-[#424769] font-medium mt-0.5">
+            Dept Head approved &bull; Awaiting HR
+          </p>
+        </div>
+
+        <div
+          onClick={() => setWorkflowTab('approved')}
+          className={`cursor-pointer transition-all rounded-2xl bg-white p-5 border shadow-sm ${
+            workflowTab === 'approved' ? 'border-emerald-400 ring-2 ring-emerald-200' : 'border-gray-100'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#676F9D]">
+              Fully Approved
+            </span>
+            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+          </div>
+          <div className="mt-2 text-2xl font-black text-[#2D3250]">
+            {fullyApprovedLeaves.length}
+          </div>
+          <p className="text-[11px] text-emerald-600 font-medium mt-0.5">
+            Two-level sign-off completed
+          </p>
+        </div>
+
+        <div
+          onClick={() => setWorkflowTab('rejected')}
+          className={`cursor-pointer transition-all rounded-2xl bg-white p-5 border shadow-sm ${
+            workflowTab === 'rejected' ? 'border-rose-400 ring-2 ring-rose-200' : 'border-gray-100'
+          }`}
+        >
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#676F9D]">
+              Rejected
+            </span>
+            <XCircle className="w-5 h-5 text-rose-500" />
+          </div>
+          <div className="mt-2 text-2xl font-black text-[#2D3250]">
+            {rejectedLeaves.length}
+          </div>
+          <p className="text-[11px] text-rose-600 font-medium mt-0.5">
+            Declined requests
+          </p>
+        </div>
+      </div>
+
+      {/* Workflow Tabs Navigation */}
+      <div className="border-b border-gray-200 flex flex-wrap gap-2 text-xs font-bold">
+        <button
+          onClick={() => setWorkflowTab('all')}
+          className={`pb-3 px-3 transition-colors cursor-pointer border-b-2 ${
+            workflowTab === 'all'
+              ? 'border-[#2D3250] text-[#2D3250]'
+              : 'border-transparent text-gray-400 hover:text-gray-600'
+          }`}
+        >
+          All Applications ({leaves.length})
+        </button>
+        <button
+          onClick={() => setWorkflowTab('stage1')}
+          className={`pb-3 px-3 transition-colors cursor-pointer border-b-2 flex items-center gap-1.5 ${
+            workflowTab === 'stage1'
+              ? 'border-[#FFB17A] text-[#2D3250]'
+              : 'border-transparent text-gray-400 hover:text-gray-600'
+          }`}
+        >
+          <span className="h-2 w-2 rounded-full bg-amber-400"></span>
+          Stage 1: Dept Head Review ({stage1Leaves.length})
+        </button>
+        <button
+          onClick={() => setWorkflowTab('stage2')}
+          className={`pb-3 px-3 transition-colors cursor-pointer border-b-2 flex items-center gap-1.5 ${
+            workflowTab === 'stage2'
+              ? 'border-[#424769] text-[#2D3250]'
+              : 'border-transparent text-gray-400 hover:text-gray-600'
+          }`}
+        >
+          <span className="h-2 w-2 rounded-full bg-[#676F9D]"></span>
+          Stage 2: Final HR Approval ({stage2Leaves.length})
+        </button>
+        <button
+          onClick={() => setWorkflowTab('approved')}
+          className={`pb-3 px-3 transition-colors cursor-pointer border-b-2 ${
+            workflowTab === 'approved'
+              ? 'border-emerald-500 text-emerald-700'
+              : 'border-transparent text-gray-400 hover:text-gray-600'
+          }`}
+        >
+          Fully Approved ({fullyApprovedLeaves.length})
+        </button>
+        <button
+          onClick={() => setWorkflowTab('rejected')}
+          className={`pb-3 px-3 transition-colors cursor-pointer border-b-2 ${
+            workflowTab === 'rejected'
+              ? 'border-rose-500 text-rose-700'
+              : 'border-transparent text-gray-400 hover:text-gray-600'
+          }`}
+        >
+          Rejected ({rejectedLeaves.length})
+        </button>
+      </div>
+
+      {/* Search & Department Filters */}
+      <div className="rounded-2xl bg-white p-4 shadow-sm border border-gray-100 flex flex-col md:flex-row items-center justify-between gap-4">
+        <div className="relative w-full md:w-72">
+          <Search className="w-4 h-4 absolute left-3 top-3 text-[#676F9D]" />
+          <input
+            type="text"
+            placeholder="Search applicant or notes..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full rounded-xl border border-gray-200 bg-[#f8fafc] pl-9 pr-4 py-2 text-sm text-[#2D3250] placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#FFB17A]"
+          />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">
+          {/* Department Filter for Dept Heads and Admins */}
+          <select
+            value={deptFilter}
+            onChange={(e) => setDeptFilter(e.target.value)}
+            className="rounded-xl border border-gray-200 bg-[#f8fafc] px-3 py-2 text-xs font-medium text-[#2D3250] focus:outline-none focus:ring-2 focus:ring-[#FFB17A]"
+          >
+            <option value="">All Departments</option>
+            {departments.map((d) => {
+              const name = d.department_name || d.name;
+              return (
+                <option key={d.id} value={name}>
+                  {name}
+                </option>
+              );
+            })}
+          </select>
+
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value)}
+            className="rounded-xl border border-gray-200 bg-[#f8fafc] px-3 py-2 text-xs font-medium text-[#2D3250] focus:outline-none focus:ring-2 focus:ring-[#FFB17A]"
+          >
+            <option value="">All Leave Types</option>
+            <option value="Annual Leave">Annual Leave</option>
+            <option value="Sick Leave">Sick Leave</option>
+            <option value="Casual Leave">Casual Leave</option>
+            <option value="Maternity Leave">Maternity Leave</option>
+            <option value="Unpaid Leave">Unpaid Leave</option>
+          </select>
+
+          {(searchTerm || deptFilter || typeFilter || workflowTab !== 'all') && (
+            <button
+              onClick={() => {
+                setSearchTerm('');
+                setDeptFilter('');
+                setTypeFilter('');
+                setWorkflowTab('all');
+              }}
+              className="text-xs font-semibold text-rose-500 hover:underline cursor-pointer"
+            >
+              Reset Filters
+            </button>
+          )}
+
+          <span className="text-xs font-semibold text-[#676F9D]">
+            Showing {filteredLeaves.length}
+          </span>
+        </div>
+      </div>
+
+      {/* Leave Applications Table */}
+      <div className="rounded-2xl bg-white shadow-sm border border-gray-100 overflow-hidden">
+        {loading ? (
+          <LoadingSpinner message="Loading leave applications..." />
+        ) : filteredLeaves.length === 0 ? (
+          <div className="p-12 text-center space-y-3">
+            <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100 text-[#676F9D]">
+              <CalendarOff className="w-6 h-6" />
+            </div>
+            <h3 className="text-base font-bold text-[#2D3250]">No Leave Requests Found</h3>
+            <p className="text-xs text-gray-500 max-w-sm mx-auto">
+              {workflowTab === 'stage1'
+                ? 'No requests are currently awaiting Department Head approval.'
+                : workflowTab === 'stage2'
+                ? 'No requests are currently awaiting Final HR approval.'
+                : 'No employee leave records match your current criteria.'}
+            </p>
+            {workflowTab === 'all' && (
+              <Button
+                variant="accent"
+                size="sm"
+                icon={Plus}
+                onClick={() => {
+                  setModalError(null);
+                  setIsModalOpen(true);
+                }}
+              >
+                Submit First Request
+              </Button>
+            )}
+          </div>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="bg-[#f8fafc] text-[11px] font-bold uppercase tracking-wider text-[#676F9D] border-b border-gray-100">
+                <tr>
+                  <th className="px-6 py-4">Applicant & Dept</th>
+                  <th className="px-6 py-4">Leave Type</th>
+                  <th className="px-6 py-4">Dates & Duration</th>
+                  <th className="px-6 py-4">Workflow Status</th>
+                  <th className="px-6 py-4">Reason / Notes</th>
+                  <th className="px-6 py-4 text-right">Approval Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-100 text-xs">
+                {filteredLeaves.map((leave) => {
+                  const emp = leave.employees || employees.find((e) => String(e.id) === String(leave.employee_id));
+                  const empName = getEmployeeDisplayName(emp);
+                  const isHeadApproved = Boolean(leave.head_approved);
+                  const isFinalApproved = Boolean(leave.final_approved);
+                  const isRejected = leave.status === 'Rejected';
+
+                  return (
+                    <tr key={leave.id} className="hover:bg-gray-50/70 transition-colors">
+                      <td className="px-6 py-4">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#2D3250] text-white font-bold text-xs">
+                            {empName.charAt(0).toUpperCase()}
+                          </div>
+                          <div>
+                            <p className="font-bold text-[#2D3250] text-sm leading-snug">
+                              {empName}
+                            </p>
+                            <p className="text-[11px] text-gray-500 flex items-center gap-1">
+                              <Building2 className="w-3 h-3 text-[#676F9D]" />
+                              {emp?.department || 'General Staff'} &bull; Staff #{leave.employee_id}
+                            </p>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-6 py-4">
+                        <Badge variant="accent" size="sm">
+                          {leave.leave_type}
+                        </Badge>
+                      </td>
+
+                      <td className="px-6 py-4 font-medium text-[#424769] whitespace-nowrap">
+                        <div className="flex items-center gap-1.5">
+                          <Calendar className="w-3.5 h-3.5 text-[#676F9D]" />
+                          <span>
+                            {formatDate(leave.start_date)} - {formatDate(leave.end_date)}
+                          </span>
+                        </div>
+                      </td>
+
+                      {/* Two-Level Visual Workflow Status */}
+                      <td className="px-6 py-4">
+                        <div className="space-y-1.5">
+                          {isRejected ? (
+                            <Badge variant="danger" size="sm">
+                              Rejected
+                            </Badge>
+                          ) : isFinalApproved ? (
+                            <Badge variant="success" size="sm" className="font-bold">
+                              Fully Approved
+                            </Badge>
+                          ) : isHeadApproved ? (
+                            <Badge variant="info" size="sm">
+                              Pending Final HR Approval
+                            </Badge>
+                          ) : (
+                            <Badge variant="warning" size="sm">
+                              Pending Dept Head Review
+                            </Badge>
+                          )}
+
+                          {/* Stepper Pill */}
+                          <div className="flex items-center gap-1 text-[10px] text-gray-500 font-medium">
+                            <span
+                              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded ${
+                                isHeadApproved
+                                  ? 'bg-emerald-50 text-emerald-700 font-bold'
+                                  : isRejected
+                                  ? 'bg-rose-50 text-rose-600'
+                                  : 'bg-amber-50 text-amber-700'
+                              }`}
+                            >
+                              1. Head: {isHeadApproved ? 'Approved' : isRejected ? 'Declined' : 'Pending'}
+                            </span>
+                            <ArrowRight className="w-2.5 h-2.5 text-gray-400" />
+                            <span
+                              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded ${
+                                isFinalApproved
+                                  ? 'bg-emerald-50 text-emerald-700 font-bold'
+                                  : isRejected
+                                  ? 'bg-rose-50 text-rose-600'
+                                  : isHeadApproved
+                                  ? 'bg-blue-50 text-blue-700 font-semibold'
+                                  : 'bg-gray-100 text-gray-400'
+                              }`}
+                            >
+                              2. HR: {isFinalApproved ? 'Approved' : isRejected ? 'Declined' : 'Pending'}
+                            </span>
+                          </div>
+                        </div>
+                      </td>
+
+                      <td className="px-6 py-4 text-gray-600 max-w-xs">
+                        <p className="truncate" title={leave.reason || 'No notes'}>
+                          {leave.reason || '-'}
+                        </p>
+                      </td>
+
+                      {/* Approval Actions */}
+                      <td className="px-6 py-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          {/* Stage 1: Department Head Approval Button */}
+                          {leave.status === 'Pending' && !isHeadApproved && (
+                            <>
+                              <button
+                                onClick={() => handleDeptHeadApprove(leave.id)}
+                                disabled={actionLoading}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-[11px] shadow-xs transition-colors cursor-pointer"
+                                title="Department Head Approval (Stage 1)"
+                              >
+                                <UserCheck className="w-3.5 h-3.5" />
+                                Dept Head Approve
+                              </button>
+                              <button
+                                onClick={() => handleReject(leave.id, 'Dept Head')}
+                                disabled={actionLoading}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 font-semibold text-[11px] transition-colors cursor-pointer"
+                                title="Reject Application"
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                                Reject
+                              </button>
+                            </>
+                          )}
+
+                          {/* Stage 2: Final HR / Management Approval Button */}
+                          {/* Strictly visible ONLY after Stage 1 (isHeadApproved) has succeeded! */}
+                          {leave.status === 'Pending' && isHeadApproved && !isFinalApproved && (
+                            <>
+                              <button
+                                onClick={() => handleFinalApprove(leave.id)}
+                                disabled={actionLoading}
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] shadow-xs transition-colors cursor-pointer"
+                                title="Final HR Approval (Stage 2 - Fully Approve)"
+                              >
+                                <ShieldCheck className="w-3.5 h-3.5" />
+                                Grant Final Approval
+                              </button>
+                              <button
+                                onClick={() => handleReject(leave.id, 'HR Admin')}
+                                disabled={actionLoading}
+                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 font-semibold text-[11px] transition-colors cursor-pointer"
+                                title="Reject Application"
+                              >
+                                <XCircle className="w-3.5 h-3.5" />
+                                Reject
+                              </button>
+                            </>
+                          )}
+
+                          {/* Delete Button */}
+                          <button
+                            onClick={() => setDeleteId(leave.id)}
+                            className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                            title="Delete Request"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Submission Modal */}
+      <LeaveModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setModalError(null);
+        }}
+        onSave={handleSaveLeave}
+        loading={actionLoading}
+        error={modalError}
+        clearError={() => setModalError(null)}
+        employees={employees}
+      />
+
+      {/* Delete Confirmation */}
+      <ConfirmDialog
+        isOpen={!!deleteId}
+        onClose={() => setDeleteId(null)}
+        onConfirm={handleDeleteLeave}
+        title="Delete Leave Application"
+        message="Are you sure you want to permanently remove this leave application?"
+        confirmText="Yes, Delete"
+        loading={actionLoading}
+      />
+    </div>
+  );
+};

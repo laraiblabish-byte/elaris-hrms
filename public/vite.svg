@@ -1,0 +1,48 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" width="64" height="64">
+  <defs>
+    <!-- Elaris signature glowing coral gradient -->
+    <linearGradient id="elarisCoral" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FFB17A" />
+      <stop offset="50%" stop-color="#FCA05F" />
+      <stop offset="100%" stop-color="#F47C42" />
+    </linearGradient>
+
+    <!-- Subtle top ambient shine -->
+    <linearGradient id="elarisGlow" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.35" />
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0.0" />
+    </linearGradient>
+
+    <!-- Crisp high-DPI contrast shadow for inner emblem -->
+    <filter id="emblemShadow" x="-15%" y="-15%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="1.2" stdDeviation="1.2" flood-color="#000000" flood-opacity="0.28" />
+    </filter>
+  </defs>
+
+  <!-- Squircle Base: 15px radius, vibrant warm coral that stands out brilliantly on both dark and light browser tabs -->
+  <rect x="2" y="2" width="60" height="60" rx="15" fill="url(#elarisCoral)" />
+  <rect x="2" y="2" width="60" height="60" rx="15" fill="url(#elarisGlow)" />
+  <rect x="2.5" y="2.5" width="59" height="59" rx="14.5" fill="none" stroke="#FFFFFF" stroke-width="1.2" stroke-opacity="0.5" />
+
+  <!-- Elaris Brand Sparkles Mark (Deep Slate #2D3250 with crisp white focal point) -->
+  <g transform="translate(9.2, 9.2) scale(1.9)" filter="url(#emblemShadow)">
+    <!-- Primary Brilliant 4-Point Star -->
+    <path
+      d="M11.017 2.814a1 1 0 0 1 1.966 0l1.051 5.558a2 2 0 0 0 1.594 1.594l5.558 1.051a1 1 0 0 1 0 1.966l-5.558 1.051a2 2 0 0 0-1.594 1.594l-1.051 5.558a1 1 0 0 1-1.966 0l-1.051-5.558a2 2 0 0 0-1.594-1.594l-5.558-1.051a1 1 0 0 1 0-1.966l5.558-1.051a2 2 0 0 0 1.594-1.594z"
+      fill="#2D3250"
+      stroke="#2D3250"
+      stroke-width="1.2"
+      stroke-linejoin="round"
+    />
+    <!-- Center workforce core node -->
+    <circle cx="12" cy="12" r="1.5" fill="#FFFFFF" />
+
+    <!-- Top-Right Spark Accent -->
+    <path d="M20 2v4" stroke="#2D3250" stroke-width="2.2" stroke-linecap="round" />
+    <path d="M22 4h-4" stroke="#2D3250" stroke-width="2.2" stroke-linecap="round" />
+
+    <!-- Bottom-Left Workforce Node Accent -->
+    <circle cx="4" cy="20" r="2.2" fill="#2D3250" />
+  </g>
+</svg>
+
