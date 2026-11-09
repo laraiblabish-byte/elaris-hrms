@@ -3,7 +3,7 @@ import { Modal } from '../../components/common/Modal';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { SearchableSelect } from '../../components/common/SearchableSelect';
-import { Mail, Phone, Briefcase, Building2, User, ShieldAlert } from 'lucide-react';
+import { Mail, Phone, Briefcase, Building2, User, ShieldAlert, Sparkles, AlertCircle } from 'lucide-react';
 import { getDepartments } from '../../utils/dbHelpers';
 import { getDesignationsForDepartment, ALL_DESIGNATIONS, DEPARTMENT_DESIGNATIONS, PREDEFINED_DEPARTMENTS } from '../../utils/constants';
 

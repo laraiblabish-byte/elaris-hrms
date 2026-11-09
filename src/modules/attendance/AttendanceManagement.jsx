@@ -3,12 +3,16 @@ import {
   CalendarCheck,
   Plus,
   Search,
+  Filter,
   Clock,
+  Calendar,
   CheckCircle2,
   XCircle,
+  AlertTriangle,
   RefreshCw,
   Trash2,
   Edit,
+  LogIn,
   LogOut,
 } from 'lucide-react';
 import { Button } from '../../components/common/Button';
@@ -346,12 +350,10 @@ export const AttendanceManagement = () => {
                         </Badge>
                       </td>
                       <td className="px-6 py-4 font-mono text-gray-600">
-                        {rec.check_in ? formatTime(rec.check_in) : '-'}
+                        {rec.check_in || '-'}
                       </td>
                       <td className="px-6 py-4 font-mono text-gray-600">
-                        {rec.check_out ? (
-                          formatTime(rec.check_out)
-                        ) : (
+                        {rec.check_out || (
                           <button
                             onClick={() => handleQuickClockOut(rec)}
                             className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#FFB17A] hover:text-[#fca05f] cursor-pointer"

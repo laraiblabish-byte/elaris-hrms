@@ -13,7 +13,7 @@ export const SearchableSelect = ({
   disabled = false,
   icon: Icon,
   className = '',
-  id: _id,
+  id,
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');

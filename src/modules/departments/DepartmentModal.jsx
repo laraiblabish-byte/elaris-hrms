@@ -3,7 +3,7 @@ import { Modal } from '../../components/common/Modal';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { Select } from '../../components/common/Select';
-import { Building2, User, ShieldAlert } from 'lucide-react';
+import { Building2, User, AlertCircle, ShieldAlert } from 'lucide-react';
 import { getEmployees } from '../../utils/dbHelpers';
 import { getEmployeeDisplayName } from '../../utils/formatters';
 

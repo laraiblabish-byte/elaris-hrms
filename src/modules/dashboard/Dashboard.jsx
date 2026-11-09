@@ -7,9 +7,12 @@ import {
   Banknote,
   Plus,
   ArrowRight,
+  TrendingUp,
+  Clock,
   Sparkles,
   CheckCircle,
   XCircle,
+  Database,
 } from 'lucide-react';
 import { StatCard } from '../../components/common/StatCard';
 import { Badge } from '../../components/common/Badge';
@@ -39,6 +42,7 @@ export const Dashboard = ({ setActiveTab }) => {
 
   const [recentAttendance, setRecentAttendance] = useState([]);
   const [recentLeaves, setRecentLeaves] = useState([]);
+  const [departments, setDepartments] = useState([]);
 
   const { showToast } = useToast();
   const { profile, user } = useAuth();
@@ -83,6 +87,7 @@ export const Dashboard = ({ setActiveTab }) => {
 
       setRecentAttendance(attList.slice(0, 5));
       setRecentLeaves(leaveList.slice(0, 5));
+      setDepartments(deptList);
     } catch (err) {
       console.error('Dashboard load error:', err);
     } finally {

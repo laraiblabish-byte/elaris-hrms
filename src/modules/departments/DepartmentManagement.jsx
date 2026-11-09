@@ -9,8 +9,12 @@ import {
   RefreshCw,
   FolderTree,
   UserCheck,
+  Sparkles,
+  ShieldCheck,
+  AlertTriangle,
 } from 'lucide-react';
 import { Button } from '../../components/common/Button';
+import { Badge } from '../../components/common/Badge';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { LoadingSpinner } from '../../components/common/LoadingSpinner';
 import { DepartmentModal } from './DepartmentModal';
@@ -169,17 +173,6 @@ export const DepartmentManagement = () => {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          <Button
-            variant="outline"
-            size="sm"
-            icon={Building2}
-            onClick={handleSeedDepartments}
-            loading={actionLoading}
-            title="Seed standard 14 organizational departments"
-          >
-            Seed 14 Departments
-          </Button>
-
           <Button
             variant="outline"
             size="sm"

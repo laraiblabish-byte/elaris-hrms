@@ -2,7 +2,7 @@ import React from 'react';
 import { Menu, ShieldCheck, Activity } from 'lucide-react';
 import { navigationItems } from './Sidebar';
 
-export const Header = ({ activeTab, onMenuClick, onProfileClick: _onProfileClick }) => {
+export const Header = ({ activeTab, onMenuClick, onProfileClick }) => {
   const currentItem = navigationItems.find((item) => item.id === activeTab);
 
   return (
