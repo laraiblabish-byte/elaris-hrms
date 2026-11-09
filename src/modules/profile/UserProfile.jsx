@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { User, Mail, Shield, KeyRound, Calendar, CheckCircle2, Save, ShieldAlert, Sparkles } from 'lucide-react';
+import { User, Mail, Shield, KeyRound, Calendar, Save, ShieldAlert, Sparkles } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { Button } from '../../components/common/Button';

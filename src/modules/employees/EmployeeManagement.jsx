@@ -8,11 +8,8 @@ import {
   Trash2,
   Eye,
   Mail,
-  Building2,
-  DollarSign,
   Phone,
   RefreshCw,
-  AlertCircle,
 } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
@@ -27,7 +24,7 @@ import {
   deleteEmployee,
   getDepartments,
 } from '../../utils/dbHelpers';
-import { formatCurrency, formatDate, getEmployeeDisplayName } from '../../utils/formatters';
+import { formatCurrency, getEmployeeDisplayName } from '../../utils/formatters';
 import { useToast } from '../../context/ToastContext';
 
 export const EmployeeManagement = () => {

@@ -3,7 +3,7 @@ import { Modal } from '../../components/common/Modal';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { Select } from '../../components/common/Select';
-import { Banknote, Calendar, Calculator, Sparkles, ShieldAlert } from 'lucide-react';
+import { Calendar, Calculator, ShieldAlert } from 'lucide-react';
 import { getEmployees } from '../../utils/dbHelpers';
 import { formatCurrency, getEmployeeDisplayName } from '../../utils/formatters';
 
@@ -69,7 +69,8 @@ export const PayrollModal = ({
       });
     }
     setFieldErrors({});
-  }, [record, isOpen]);
+    if (clearError) clearError();
+  }, [record, isOpen, clearError]);
 
   // When employee is selected in create mode, auto-fill their basic salary
   const handleEmployeeChange = (e) => {

@@ -3,15 +3,12 @@ import {
   Banknote,
   Plus,
   Search,
-  Filter,
   CheckCircle2,
   Clock,
   RefreshCw,
   Trash2,
   Edit,
   FileText,
-  Calendar,
-  ArrowRight,
   TrendingUp,
 } from 'lucide-react';
 import { Button } from '../../components/common/Button';

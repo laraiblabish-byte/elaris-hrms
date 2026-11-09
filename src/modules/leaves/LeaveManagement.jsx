@@ -3,23 +3,18 @@ import {
   CalendarOff,
   Plus,
   Search,
-  Filter,
   CheckCircle2,
   XCircle,
-  Clock,
   RefreshCw,
   Trash2,
   Calendar,
-  AlertCircle,
   UserCheck,
   ShieldCheck,
   Building2,
   ArrowRight,
-  Sparkles,
 } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
-import { StatCard } from '../../components/common/StatCard';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { LoadingSpinner } from '../../components/common/LoadingSpinner';
 import { LeaveModal } from './LeaveModal';

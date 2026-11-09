@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { Modal } from '../../components/common/Modal';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
-import { Printer, Download, Sparkles, Building2, User, Calendar, Banknote, CheckCircle2 } from 'lucide-react';
+import { Printer, Sparkles } from 'lucide-react';
 import { formatCurrency, formatDate, getEmployeeDisplayName } from '../../utils/formatters';
 
 export const PayslipModal = ({ isOpen, onClose, payslipData }) => {

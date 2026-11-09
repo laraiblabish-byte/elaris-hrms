@@ -3,19 +3,11 @@ import {
   FileText,
   Search,
   Eye,
-  Printer,
   Trash2,
   RefreshCw,
-  Sparkles,
-  Download,
-  Calendar,
-  Building2,
-  DollarSign,
-  Plus,
 } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
-import { StatCard } from '../../components/common/StatCard';
 import { ConfirmDialog } from '../../components/common/ConfirmDialog';
 import { LoadingSpinner } from '../../components/common/LoadingSpinner';
 import { PayslipModal } from './PayslipModal';
@@ -93,16 +85,6 @@ export const PayslipManagement = ({ selectedPayrollForPayslip, onClearSelectedPa
     } finally {
       setActionLoading(false);
     }
-  };
-
-  // Open viewer for a payslip record
-  const handleOpenPayslip = (slip) => {
-    setActivePayslipData({
-      employee: slip.employees,
-      payroll: slip.payroll,
-      payslipId: slip.id,
-      generatedDate: slip.created_at,
-    });
   };
 
   // Generate / View for any payroll record directly

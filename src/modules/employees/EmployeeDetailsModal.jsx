@@ -1,8 +1,7 @@
 import React from 'react';
 import { Modal } from '../../components/common/Modal';
 import { Button } from '../../components/common/Button';
-import { Badge } from '../../components/common/Badge';
-import { Mail, Phone, Briefcase, Building2, Banknote, Calendar, Hash, Edit3 } from 'lucide-react';
+import { Mail, Phone, Banknote, Calendar, Edit3 } from 'lucide-react';
 import { formatCurrency, formatDate, getEmployeeDisplayName } from '../../utils/formatters';
 
 export const EmployeeDetailsModal = ({ isOpen, onClose, employee, onEdit }) => {
