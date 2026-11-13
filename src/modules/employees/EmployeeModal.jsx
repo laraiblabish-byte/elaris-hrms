@@ -326,20 +326,20 @@ export const EmployeeModal = ({ isOpen, onClose, onSave, employee, loading, erro
           <div>
             <label className="block text-xs font-semibold text-[#2D3250] mb-1.5 flex items-center gap-1.5">
               <Award className="w-3.5 h-3.5 text-[#FFB17A]" />
-              Benefits & Seniority Policy Tier
+              Grade Level – Specialist Tier
             </label>
             <select
               value={formData.role_tier || 'Mid-Level'}
               onChange={(e) => setFormData({ ...formData, role_tier: e.target.value })}
               className="w-full rounded-xl border border-gray-200 bg-[#f8fafc] px-3.5 py-2.5 text-xs font-bold text-[#2D3250] focus:outline-none focus:ring-2 focus:ring-[#FFB17A]"
             >
-              <option value="Executive">Executive Tier (30 Days Leaves & $100k Coverage)</option>
-              <option value="Senior">Senior Tier (25 Days Leaves & $50k Coverage)</option>
-              <option value="Mid-Level">Mid-Level Tier (20 Days Leaves & $25k Coverage)</option>
-              <option value="Junior">Junior Tier (15 Days Leaves & $12k Coverage)</option>
+              <option value="Executive">Executive Tier (Executive Grade - 30 Days Leaves & $100k Coverage)</option>
+              <option value="Senior">Senior Tier (Senior Grade - 25 Days Leaves & $50k Coverage)</option>
+              <option value="Mid-Level">Mid-Level Tier (Specialist Grade - 20 Days Leaves & $25k Coverage)</option>
+              <option value="Junior">Junior Tier (Associate Grade - 15 Days Leaves & $12k Coverage)</option>
             </select>
-            <p className="mt-1 text-[11px] text-gray-400">
-              Sets paid leave quotas, healthcare limit, and WFH/learning benefits
+            <p className="mt-1 text-[11px] text-gray-500">
+              Grade Level – Specialist Tier refers to an employee's professional experience and seniority level within the organization.
             </p>
           </div>
         </div>

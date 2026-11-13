@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { User, Mail, Shield, KeyRound, Calendar, CheckCircle2, Save, ShieldAlert, Sparkles } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { User, Mail, Shield, KeyRound, Calendar, CheckCircle2, Save, ShieldAlert, Sparkles, Camera, Upload, Trash2 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useToast } from '../../context/ToastContext';
 import { Button } from '../../components/common/Button';
@@ -8,12 +8,25 @@ import { Select } from '../../components/common/Select';
 import { formatDate } from '../../utils/formatters';
 
 export const UserProfile = () => {
-  const { user, profile, updateProfile, changePassword } = useAuth();
+  const { user, profile, updateProfile, changePassword, isHR, isSuperAdmin, isEmployee, role: authRole } = useAuth();
   const { showToast } = useToast();
 
+  const isStandardEmployee = Boolean(isEmployee || authRole === 'Employee' || (!isHR && !isSuperAdmin));
+
   const [fullName, setFullName] = useState(profile?.full_name || user?.user_metadata?.full_name || '');
-  const [role, setRole] = useState(profile?.role || user?.user_metadata?.role || 'HR Admin');
+  const [role, setRole] = useState(profile?.role || user?.user_metadata?.role || (isStandardEmployee ? 'Employee' : 'HR Admin'));
   const [savingProfile, setSavingProfile] = useState(false);
+
+  const fileInputRef = useRef(null);
+  const [avatarUrl, setAvatarUrl] = useState(() => {
+    return (
+      profile?.avatar_url ||
+      user?.user_metadata?.avatar_url ||
+      (user?.id ? localStorage.getItem(`elaris_avatar_${user.id}`) : null) ||
+      (user?.email ? localStorage.getItem(`elaris_avatar_${user.email}`) : null) ||
+      ''
+    );
+  });
 
   // Sync state whenever profile or user loads/updates
   useEffect(() => {
@@ -27,6 +40,15 @@ export const UserProfile = () => {
     } else if (user?.user_metadata?.role) {
       setRole(user.user_metadata.role);
     }
+    const currentAvatar =
+      profile?.avatar_url ||
+      user?.user_metadata?.avatar_url ||
+      (user?.id ? localStorage.getItem(`elaris_avatar_${user.id}`) : null) ||
+      (user?.email ? localStorage.getItem(`elaris_avatar_${user.email}`) : null) ||
+      '';
+    if (currentAvatar) {
+      setAvatarUrl(currentAvatar);
+    }
   }, [profile, user]);
 
   // Password change state
@@ -34,6 +56,66 @@ export const UserProfile = () => {
   const [confirmPassword, setConfirmPassword] = useState('');
   const [savingPassword, setSavingPassword] = useState(false);
   const [passwordError, setPasswordError] = useState('');
+
+  const handleAvatarClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleAvatarChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith('image/')) {
+      showToast('Please upload a valid image file (PNG, JPG, WEBP)', 'error');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      showToast('Image size exceeds 5MB. Please choose a smaller file.', 'error');
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result;
+      setAvatarUrl(dataUrl);
+
+      if (user?.id) localStorage.setItem(`elaris_avatar_${user.id}`, dataUrl);
+      if (user?.email) localStorage.setItem(`elaris_avatar_${user.email}`, dataUrl);
+
+      try {
+        const effectiveRole = isStandardEmployee ? (profile?.role || user?.user_metadata?.role || 'Employee') : role;
+        await updateProfile({
+          fullName: fullName || displayName,
+          role: effectiveRole,
+          avatarUrl: dataUrl,
+        });
+      } catch (err) {
+        console.warn('Avatar update sync notice:', err);
+      }
+
+      showToast('Profile picture updated successfully!', 'success');
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleResetAvatar = async (e) => {
+    e.stopPropagation();
+    setAvatarUrl('');
+    if (user?.id) localStorage.removeItem(`elaris_avatar_${user.id}`);
+    if (user?.email) localStorage.removeItem(`elaris_avatar_${user.email}`);
+
+    try {
+      const effectiveRole = isStandardEmployee ? (profile?.role || user?.user_metadata?.role || 'Employee') : role;
+      await updateProfile({
+        fullName: fullName || displayName,
+        role: effectiveRole,
+        avatarUrl: '',
+      });
+    } catch (err) {}
+
+    showToast('Profile picture reset to default icon', 'info');
+  };
 
   const handleUpdateProfile = async (e) => {
     e.preventDefault();
@@ -44,7 +126,8 @@ export const UserProfile = () => {
 
     try {
       setSavingProfile(true);
-      await updateProfile({ fullName: fullName.trim(), role });
+      const effectiveRole = isStandardEmployee ? (profile?.role || user?.user_metadata?.role || 'Employee') : role;
+      await updateProfile({ fullName: fullName.trim(), role: effectiveRole, avatarUrl });
       showToast('Profile information updated successfully!', 'success');
     } catch (err) {
       showToast(err.message || 'Failed to update profile', 'error');
@@ -95,9 +178,53 @@ export const UserProfile = () => {
         </div>
 
         <div className="relative z-10 flex flex-col sm:flex-row items-center sm:items-start gap-6 text-center sm:text-left">
-          <div className="flex h-24 w-24 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#FFB17A] to-[#fca05f] text-3xl font-black text-[#2D3250] shadow-xl shadow-[#FFB17A]/25">
-            {displayName.charAt(0).toUpperCase()}
+          {/* Profile Picture Box (Default Person Icon initially, Click to upload/change) */}
+          <div className="relative group shrink-0">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              onChange={handleAvatarChange}
+              className="hidden"
+            />
+
+            <div
+              onClick={handleAvatarClick}
+              className="relative flex h-24 w-24 sm:h-28 sm:w-28 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-[#FFB17A] to-[#fca05f] text-[#2D3250] shadow-xl shadow-[#FFB17A]/25 overflow-hidden cursor-pointer transition-all hover:scale-105 hover:ring-4 hover:ring-[#FFB17A]/40"
+              title="Click to upload or change your profile picture"
+            >
+              {avatarUrl ? (
+                <img
+                  src={avatarUrl}
+                  alt={displayName}
+                  className="h-full w-full object-cover rounded-2xl"
+                />
+              ) : (
+                <div className="flex flex-col items-center justify-center text-[#2D3250]">
+                  <User className="w-14 h-14 text-[#2D3250]" strokeWidth={1.75} />
+                </div>
+              )}
+
+              {/* Hover Overlay with Camera Icon */}
+              <div className="absolute inset-0 bg-[#2D3250]/75 rounded-2xl flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity backdrop-blur-xs text-white p-2">
+                <Camera className="w-6 h-6 text-[#FFB17A]" />
+                <span className="text-[10px] font-bold text-white text-center mt-1 leading-tight">
+                  {avatarUrl ? 'Change Photo' : 'Upload Photo'}
+                </span>
+              </div>
+            </div>
+
+            {/* Quick Action Badges */}
+            <button
+              type="button"
+              onClick={handleAvatarClick}
+              className="absolute -bottom-1 -right-1 p-1.5 rounded-xl bg-[#2D3250] text-[#FFB17A] border-2 border-white shadow-md hover:bg-[#424769] transition-transform hover:scale-110 cursor-pointer"
+              title="Click to upload or change profile picture"
+            >
+              <Camera className="w-3.5 h-3.5" />
+            </button>
           </div>
+
           <div className="flex-1 space-y-2">
             <div className="flex flex-wrap items-center justify-center sm:justify-start gap-3">
               <h1 className="text-2xl sm:text-3xl font-extrabold text-white">
@@ -120,6 +247,16 @@ export const UserProfile = () => {
                 <Shield className="w-3.5 h-3.5 text-emerald-400" />
                 Authenticated Session Active
               </span>
+              {avatarUrl && (
+                <button
+                  type="button"
+                  onClick={handleResetAvatar}
+                  className="flex items-center gap-1 text-rose-300 hover:text-rose-200 underline cursor-pointer text-xs transition-colors"
+                >
+                  <Trash2 className="w-3 h-3" />
+                  Reset to default icon
+                </button>
+              )}
             </div>
           </div>
         </div>
@@ -156,18 +293,28 @@ export const UserProfile = () => {
               helperText="Primary email linked to enterprise credentials"
             />
 
-            <Select
-              label="Assigned Role"
-              value={role}
-              onChange={(e) => setRole(e.target.value)}
-              options={[
-                { value: 'HR Admin', label: 'HR Administrator' },
-                { value: 'HR Manager', label: 'HR Manager' },
-                { value: 'Payroll Officer', label: 'Payroll Specialist' },
-                { value: 'Department Head', label: 'Department Head' },
-                { value: 'Employee', label: 'Standard Employee' },
-              ]}
-            />
+            {isStandardEmployee ? (
+              <Input
+                label="Assigned Role"
+                value={role === 'Employee' ? 'Standard Employee' : (role || 'Standard Employee')}
+                disabled
+                icon={Shield}
+                helperText="Your role is assigned by Enterprise Administration & HR"
+              />
+            ) : (
+              <Select
+                label="Assigned Role"
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                options={[
+                  { value: 'HR Admin', label: 'HR Administrator' },
+                  { value: 'HR Manager', label: 'HR Manager' },
+                  { value: 'Payroll Officer', label: 'Payroll Specialist' },
+                  { value: 'Department Head', label: 'Department Head' },
+                  { value: 'Employee', label: 'Standard Employee' },
+                ]}
+              />
+            )}
 
             <div className="pt-2">
               <Button

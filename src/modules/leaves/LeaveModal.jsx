@@ -3,9 +3,9 @@ import { Modal } from '../../components/common/Modal';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { Select } from '../../components/common/Select';
-import { Calendar, User, FileText, ShieldAlert, Lock, UserCheck, AlertCircle } from 'lucide-react';
+import { Calendar, User, FileText, ShieldAlert, Lock, UserCheck, AlertCircle, Clock } from 'lucide-react';
 import { getEmployees } from '../../utils/dbHelpers';
-import { getEmployeeDisplayName } from '../../utils/formatters';
+import { getEmployeeDisplayName, getTodayDateString, calculateLeaveDays } from '../../utils/formatters';
 import { useAuth } from '../../context/AuthContext';
 
 export const LeaveModal = ({
@@ -31,11 +31,16 @@ export const LeaveModal = ({
       (e) => (e.email || '').toLowerCase().trim() === (user?.email || '').toLowerCase().trim()
     );
 
+  const isApplicantDeptHead = Boolean(
+    (activeEmployee?.designation && (activeEmployee.designation.toLowerCase().includes('head') || activeEmployee.designation.toLowerCase().includes('director') || activeEmployee.designation.toLowerCase().includes('chief'))) ||
+    (user?.user_metadata?.role && user.user_metadata.role.toLowerCase().includes('head'))
+  );
+
   const [formData, setFormData] = useState({
     employee_id: activeEmployee?.id || '',
     leave_type: 'Annual Leave',
-    start_date: new Date().toISOString().split('T')[0],
-    end_date: new Date().toISOString().split('T')[0],
+    start_date: getTodayDateString(),
+    end_date: getTodayDateString(),
     reason: '',
     status: 'Pending',
     head_approved: false,
@@ -64,8 +69,8 @@ export const LeaveModal = ({
       setFormData({
         employee_id: empId,
         leave_type: 'Annual Leave',
-        start_date: new Date().toISOString().split('T')[0],
-        end_date: new Date().toISOString().split('T')[0],
+        start_date: getTodayDateString(),
+        end_date: getTodayDateString(),
         reason: '',
         status: 'Pending',
         head_approved: false,
@@ -197,8 +202,10 @@ export const LeaveModal = ({
             icon={Calendar}
             value={formData.start_date}
             onChange={(e) => {
-              setFormData({ ...formData, start_date: e.target.value });
-              if (fieldErrors.start_date) setFieldErrors({ ...fieldErrors, start_date: '' });
+              const newStart = e.target.value;
+              const newEnd = formData.end_date && formData.end_date < newStart ? newStart : formData.end_date;
+              setFormData({ ...formData, start_date: newStart, end_date: newEnd });
+              if (fieldErrors.start_date) setFieldErrors({ ...fieldErrors, start_date: '', end_date: '' });
             }}
             error={fieldErrors.start_date}
             required
@@ -218,6 +225,17 @@ export const LeaveModal = ({
           />
         </div>
 
+        {/* Live Duration Calculation Badge */}
+        <div className="rounded-xl bg-[#2D3250]/5 border border-gray-200/80 p-3 flex items-center justify-between">
+          <span className="text-xs text-[#424769] font-semibold flex items-center gap-1.5">
+            <Clock className="w-4 h-4 text-[#FFB17A]" />
+            Requested Leave Duration:
+          </span>
+          <span className="text-xs font-black px-2.5 py-1 rounded-lg bg-[#2D3250] text-[#FFB17A] shadow-xs">
+            {calculateLeaveDays(formData.start_date, formData.end_date)} {calculateLeaveDays(formData.start_date, formData.end_date) === 1 ? 'Day' : 'Days'} Duration
+          </span>
+        </div>
+
         <div className="w-full">
           <label className="block text-xs font-semibold uppercase tracking-wider text-[#424769] mb-1.5">
             Reason / Notes
@@ -234,7 +252,15 @@ export const LeaveModal = ({
         <div className="rounded-xl bg-amber-50/70 border border-amber-200/80 p-3 text-xs text-amber-900 flex items-start gap-2">
           <span className="font-bold text-amber-700">Approval Workflow:</span>
           <span>
-            Upon submission, this request enters <strong>Stage 1 (Department Head Approval)</strong>. Once endorsed by the Department Head, it advances to <strong>Stage 2 (Final HR Approval)</strong>.
+            {isApplicantDeptHead ? (
+              <>
+                As a <strong>Department Head</strong>, your leave application is routed directly to <strong>HR Management</strong> and is <strong>only approved by HR</strong> (Stage 1 review is bypassed).
+              </>
+            ) : (
+              <>
+                Upon submission, this request enters <strong>Stage 1 (Department Head Approval)</strong>. Once endorsed by the Department Head, it advances to <strong>Stage 2 (Final HR Approval)</strong>.
+              </>
+            )}
           </span>
         </div>
 

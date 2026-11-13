@@ -70,15 +70,23 @@ export const AuthProvider = ({ children }) => {
       }
 
       let resProfile = null;
+      const storedAvatar =
+        currentUser.user_metadata?.avatar_url ||
+        localStorage.getItem(`elaris_avatar_${currentUser.id}`) ||
+        localStorage.getItem(`elaris_avatar_${currentUser.email}`) ||
+        '';
+
       if (data) {
-        setProfile(data);
-        resProfile = data;
+        const enriched = { ...data, avatar_url: data.avatar_url || storedAvatar };
+        setProfile(enriched);
+        resProfile = enriched;
       } else {
         // Fallback default profile using auth user metadata
         const fallbackProfile = {
           id: currentUser.id,
           full_name: currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || 'User',
           role: currentUser.user_metadata?.role || 'Employee',
+          avatar_url: storedAvatar,
           created_at: currentUser.created_at,
         };
         setProfile(fallbackProfile);
@@ -90,10 +98,16 @@ export const AuthProvider = ({ children }) => {
       return resProfile;
     } catch (err) {
       console.warn('Profile retrieval error:', err);
+      const storedAvatar =
+        currentUser?.user_metadata?.avatar_url ||
+        localStorage.getItem(`elaris_avatar_${currentUser?.id}`) ||
+        localStorage.getItem(`elaris_avatar_${currentUser?.email}`) ||
+        '';
       const fallback = {
         id: currentUser.id,
         full_name: currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || 'User',
         role: currentUser.user_metadata?.role || 'Employee',
+        avatar_url: storedAvatar,
       };
       setProfile(fallback);
       await fetchEmployee(currentUser, fallback);
@@ -210,27 +224,49 @@ export const AuthProvider = ({ children }) => {
   };
 
   // Update Profile
-  const updateProfile = async ({ fullName, role }) => {
+  const updateProfile = async ({ fullName, role, avatarUrl }) => {
     if (!user) throw new Error('No authenticated user session found');
 
+    const metaData = {
+      full_name: fullName,
+      role: role,
+    };
+    if (avatarUrl !== undefined) {
+      metaData.avatar_url = avatarUrl;
+    }
+
+    if (avatarUrl) {
+      if (user.id) localStorage.setItem(`elaris_avatar_${user.id}`, avatarUrl);
+      if (user.email) localStorage.setItem(`elaris_avatar_${user.email}`, avatarUrl);
+    } else if (avatarUrl === '') {
+      if (user.id) localStorage.removeItem(`elaris_avatar_${user.id}`);
+      if (user.email) localStorage.removeItem(`elaris_avatar_${user.email}`);
+    }
+
     // 1. Update Supabase Auth user metadata
-    const { data: authData, error: authError } = await supabase.auth.updateUser({
-      data: {
-        full_name: fullName,
-        role: role,
-      },
-    });
-    if (authError) throw authError;
+    let authData = null;
+    try {
+      const res = await supabase.auth.updateUser({
+        data: metaData,
+      });
+      authData = res.data;
+    } catch (authError) {
+      console.warn('Supabase auth updateUser notice:', authError);
+    }
 
     // 2. Persist to profiles table in Supabase
     try {
+      const profileRow = {
+        id: user.id,
+        full_name: fullName,
+        role: role,
+      };
+      if (avatarUrl !== undefined) {
+        profileRow.avatar_url = avatarUrl;
+      }
       const { error: dbError } = await supabase
         .from('profiles')
-        .upsert({
-          id: user.id,
-          full_name: fullName,
-          role: role,
-        });
+        .upsert(profileRow);
 
       if (dbError) {
         console.warn('Profile table upsert error:', dbError.message);
@@ -244,10 +280,16 @@ export const AuthProvider = ({ children }) => {
       console.warn('Profile database update warning:', e);
     }
 
+    const resolvedAvatar =
+      avatarUrl !== undefined
+        ? avatarUrl
+        : (profile?.avatar_url || (user.id && localStorage.getItem(`elaris_avatar_${user.id}`)) || (user.email && localStorage.getItem(`elaris_avatar_${user.email}`)) || '');
+
     const updatedProfile = {
       id: user.id,
       full_name: fullName,
       role: role,
+      avatar_url: resolvedAvatar,
       created_at: profile?.created_at || user.created_at,
     };
 

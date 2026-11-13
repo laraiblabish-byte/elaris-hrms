@@ -1,5 +1,6 @@
 import { supabase } from '../supabaseClient';
 import { PREDEFINED_DEPARTMENTS } from './constants';
+import { normalizeDate, getTodayDateString, getDateOffset, formatTime } from './formatters';
 
 // Active department table tracker
 let activeDeptTable = 'Departments Table';
@@ -139,92 +140,94 @@ export const DEFAULT_SAMPLE_EMPLOYEES = [
   { id: 7, full_name: 'Dr. Tariq Mehmood', name: 'Dr. Tariq Mehmood', email: 'tariq.mehmood@elaris.com', phone: '+92 322 1122334', department: 'Software Development', designation: 'Director of Software Engineering', role_tier: 'Executive', salary: 320000 },
 ];
 
-export const DEFAULT_SAMPLE_LEAVES = [
+export const getDefaultSampleLeaves = () => [
   {
     id: 101,
     employee_id: 1,
     leave_type: 'Annual Leave',
-    start_date: '2026-10-12',
-    end_date: '2026-10-15',
+    start_date: getDateOffset(-12),
+    end_date: getDateOffset(-9),
     reason: 'Family vacation in northern valleys',
     status: 'Approved',
     head_approved: true,
     final_approved: true,
-    created_at: '2026-10-01T10:00:00Z',
+    created_at: new Date(Date.now() - 14 * 86400000).toISOString(),
   },
   {
     id: 102,
     employee_id: 1,
     leave_type: 'Sick Leave',
-    start_date: '2026-09-04',
-    end_date: '2026-09-05',
+    start_date: getDateOffset(-4),
+    end_date: getDateOffset(-3),
     reason: 'Seasonal viral flu and recovery',
     status: 'Approved',
     head_approved: true,
     final_approved: true,
-    created_at: '2026-09-03T08:30:00Z',
+    created_at: new Date(Date.now() - 5 * 86400000).toISOString(),
   },
   {
     id: 103,
     employee_id: 1,
     leave_type: 'Annual Leave',
-    start_date: '2026-11-20',
-    end_date: '2026-11-22',
+    start_date: getDateOffset(1),
+    end_date: getDateOffset(3),
     reason: 'Attending cousin wedding in Lahore',
     status: 'Pending',
     head_approved: true,
     final_approved: false,
-    created_at: '2026-11-05T14:20:00Z',
+    created_at: new Date().toISOString(),
   },
   {
     id: 104,
     employee_id: 1,
     leave_type: 'Casual Leave',
-    start_date: '2026-08-10',
-    end_date: '2026-08-11',
+    start_date: getDateOffset(-18),
+    end_date: getDateOffset(-17),
     reason: 'Personal urgent errand during quarterly deployment',
     status: 'Rejected',
     head_approved: false,
     final_approved: false,
-    created_at: '2026-08-08T09:15:00Z',
+    created_at: new Date(Date.now() - 20 * 86400000).toISOString(),
   },
   {
     id: 105,
     employee_id: 6,
     leave_type: 'Sick Leave',
-    start_date: '2026-10-20',
-    end_date: '2026-10-21',
+    start_date: getDateOffset(-2),
+    end_date: getDateOffset(-1),
     reason: 'Doctor consultation & wisdom tooth procedure',
     status: 'Approved',
     head_approved: true,
     final_approved: true,
-    created_at: '2026-10-19T11:00:00Z',
+    created_at: new Date(Date.now() - 3 * 86400000).toISOString(),
   },
   {
     id: 106,
     employee_id: 6,
     leave_type: 'Annual Leave',
-    start_date: '2026-12-01',
-    end_date: '2026-12-03',
+    start_date: getDateOffset(3),
+    end_date: getDateOffset(5),
     reason: 'Semester break travel',
     status: 'Pending',
     head_approved: false,
     final_approved: false,
-    created_at: '2026-11-08T16:00:00Z',
+    created_at: new Date().toISOString(),
   },
   {
     id: 107,
     employee_id: 5,
     leave_type: 'Annual Leave',
-    start_date: '2026-10-05',
-    end_date: '2026-10-07',
+    start_date: getDateOffset(-7),
+    end_date: getDateOffset(-5),
     reason: 'Personal recreation and family time',
     status: 'Approved',
     head_approved: true,
     final_approved: true,
-    created_at: '2026-09-28T09:00:00Z',
+    created_at: new Date(Date.now() - 10 * 86400000).toISOString(),
   },
 ];
+
+export const DEFAULT_SAMPLE_LEAVES = getDefaultSampleLeaves();
 
 // ----------------- GENERIC STORAGE HELPERS -----------------
 const getStorageList = (key) => {
@@ -288,7 +291,7 @@ const removeCustomDepartment = (id, name) => {
         (d) => (d.department_name || d.name)?.trim().toLowerCase() !== name.trim().toLowerCase()
       );
       localStorage.setItem(STORAGE_CUSTOM_DEPTS, JSON.stringify(filtered));
-    } catch (e) {}
+    } catch (e) { }
   }
 };
 const getDeletedDepartmentNames = () => getDeletedSet(STORAGE_DELETED_DEPTS);
@@ -298,7 +301,7 @@ const addDeletedDepartmentName = (name) => {
     const current = getDeletedDepartmentNames();
     current.add(name.trim().toLowerCase());
     localStorage.setItem(STORAGE_DELETED_DEPTS, JSON.stringify(Array.from(current)));
-  } catch (e) {}
+  } catch (e) { }
 };
 
 // ================= ATTENDANCE STORAGE HELPERS =================
@@ -559,7 +562,7 @@ export const deleteDepartment = async (id, departmentName) => {
   if (!isNaN(numericId)) {
     try {
       await supabase.from('employees').update({ department_id: null }).eq('department_id', numericId);
-    } catch (e) {}
+    } catch (e) { }
 
     try {
       await supabase.from(activeDeptTable).delete().eq('id', numericId);
@@ -692,7 +695,7 @@ export const createEmployee = async (employeeData) => {
       if (deptMatch && deptMatch.id) {
         resolvedDeptId = Number(deptMatch.id);
       }
-    } catch (e) {}
+    } catch (e) { }
   }
 
   const fullNameStr = (employeeData.full_name || employeeData.name || '').trim();
@@ -823,24 +826,24 @@ export const deleteEmployee = async (id) => {
   // Unlink or cascade dependent records
   try {
     await supabase.from('attendance').delete().eq('employee_id', targetId);
-  } catch (e) {}
+  } catch (e) { }
 
   try {
     await supabase.from('leaves').delete().eq('employee_id', targetId);
-  } catch (e) {}
+  } catch (e) { }
 
   try {
     await supabase.from('payslips').delete().eq('employee_id', targetId);
-  } catch (e) {}
+  } catch (e) { }
 
   try {
     await supabase.from('payroll').delete().eq('employee_id', targetId);
-  } catch (e) {}
+  } catch (e) { }
 
   try {
     await supabase.from('Departments Table').update({ head_employee_id: null }).eq('head_employee_id', targetId);
     await supabase.from('departments').update({ head_employee_id: null }).eq('head_employee_id', targetId);
-  } catch (e) {}
+  } catch (e) { }
 
   if (!isNaN(numericId)) {
     try {
@@ -857,6 +860,73 @@ export const deleteEmployee = async (id) => {
 // ==============================================================================
 // 3. ATTENDANCE OPERATIONS
 // ==============================================================================
+
+export const getDefaultSampleAttendance = () => {
+  const customEmps = getCustomEmployees();
+  const emps = customEmps.length > 0 ? customEmps : DEFAULT_SAMPLE_EMPLOYEES;
+
+  const today = getTodayDateString();
+  const yesterday = getDateOffset(-1);
+  const dayBefore = getDateOffset(-2);
+
+  const sample = [];
+  let idCounter = 1000;
+
+  // Records for Today
+  emps.forEach((emp, idx) => {
+    idCounter++;
+    const isLate = idx === 2;
+    const isLeave = idx === 3;
+    const isPendingOut = idx === 5;
+    sample.push({
+      id: idCounter,
+      employee_id: emp.id,
+      attendance_date: today,
+      date: today,
+      status: isLeave ? 'On Leave' : isLate ? 'Late' : 'Present',
+      check_in: isLeave ? '-' : isLate ? '10:05 AM' : idx === 4 ? '08:50 AM' : '09:00 AM',
+      check_out: isLeave || isPendingOut ? '' : isLate ? '06:00 PM' : '05:00 PM',
+      employees: emp,
+      created_at: new Date().toISOString(),
+    });
+  });
+
+  // Records for Yesterday
+  emps.forEach((emp, idx) => {
+    idCounter++;
+    const isLate = idx === 1;
+    sample.push({
+      id: idCounter,
+      employee_id: emp.id,
+      attendance_date: yesterday,
+      date: yesterday,
+      status: isLate ? 'Late' : 'Present',
+      check_in: isLate ? '09:45 AM' : '09:00 AM',
+      check_out: '05:00 PM',
+      employees: emp,
+      created_at: new Date(Date.now() - 86400000).toISOString(),
+    });
+  });
+
+  // Records for Day Before Yesterday
+  emps.forEach((emp, idx) => {
+    idCounter++;
+    const isAbsent = idx === 4;
+    sample.push({
+      id: idCounter,
+      employee_id: emp.id,
+      attendance_date: dayBefore,
+      date: dayBefore,
+      status: isAbsent ? 'Absent' : 'Present',
+      check_in: isAbsent ? '-' : '08:55 AM',
+      check_out: isAbsent ? '-' : '05:05 PM',
+      employees: emp,
+      created_at: new Date(Date.now() - 2 * 86400000).toISOString(),
+    });
+  });
+
+  return sample;
+};
 
 export const getAttendanceRecords = async () => {
   let records = [];
@@ -885,6 +955,7 @@ export const getAttendanceRecords = async () => {
 
   const custom = getCustomAttendance();
   const deletedSet = getDeletedAttendanceIds();
+  const customEmps = getCustomEmployees();
 
   const combined = [];
   const seenIds = new Set();
@@ -893,9 +964,16 @@ export const getAttendanceRecords = async () => {
     const idKey = String(r.id);
     if (!deletedSet.has(idKey)) {
       seenIds.add(idKey);
+      const rawDate = r.attendance_date || r.date;
+      const cleanDate = normalizeDate(rawDate);
+      const emp = r.employees || customEmps.find((e) => String(e.id) === String(r.employee_id));
       combined.push({
         ...r,
-        attendance_date: r.attendance_date || r.date,
+        attendance_date: cleanDate || rawDate,
+        date: cleanDate || rawDate,
+        check_in: formatTime(r.check_in),
+        check_out: r.check_out ? formatTime(r.check_out) : '',
+        employees: emp || null,
       });
     }
   });
@@ -904,9 +982,30 @@ export const getAttendanceRecords = async () => {
     const idKey = String(r.id);
     if (!deletedSet.has(idKey) && !seenIds.has(idKey)) {
       seenIds.add(idKey);
-      combined.push(r);
+      const rawDate = r.attendance_date || r.date;
+      const cleanDate = normalizeDate(rawDate);
+      const emp = r.employees || customEmps.find((e) => String(e.id) === String(r.employee_id));
+      combined.push({
+        ...r,
+        attendance_date: cleanDate || rawDate,
+        date: cleanDate || rawDate,
+        check_in: formatTime(r.check_in),
+        check_out: r.check_out ? formatTime(r.check_out) : '',
+        employees: emp || null,
+      });
     }
   });
+
+  // Provide initial dynamic attendance if database is unseeded
+  if (combined.length === 0) {
+    const sampleAtt = getDefaultSampleAttendance();
+    sampleAtt.forEach((a) => {
+      const idKey = String(a.id);
+      if (!deletedSet.has(idKey)) {
+        combined.push(a);
+      }
+    });
+  }
 
   return combined;
 };
@@ -920,10 +1019,27 @@ export const createAttendance = async (attendanceData) => {
   const numericId = Number(rawId);
   const resolvedEmpId = isNaN(numericId) ? rawId : numericId;
 
-  const dateVal = attendanceData.attendance_date || new Date().toISOString().split('T')[0];
+  const dateVal = normalizeDate(attendanceData.attendance_date) || getTodayDateString();
+
+  // Enforce one attendance mark per day per employee
+  const existingRecords = await getAttendanceRecords();
+  const alreadyMarked = existingRecords.some((rec) => {
+    const recEmpId = String(rec.employee_id);
+    const targetEmpId = String(resolvedEmpId);
+    const recDate = normalizeDate(rec.attendance_date || rec.date);
+    return recEmpId === targetEmpId && recDate === dateVal;
+  });
+
+  if (alreadyMarked) {
+    throw new Error(`Attendance for this employee has already been recorded on ${dateVal}. Only one attendance mark per day is permitted.`);
+  }
+
   const statusVal = attendanceData.status || 'Present';
-  const inVal = attendanceData.check_in && attendanceData.check_in.trim() ? attendanceData.check_in.trim() : '09:00';
-  const outVal = attendanceData.check_out && attendanceData.check_out.trim() ? attendanceData.check_out.trim() : '17:00';
+  const inVal = attendanceData.check_in && attendanceData.check_in.trim() ? formatTime(attendanceData.check_in.trim()) : '09:00 AM';
+  const outVal = attendanceData.check_out && attendanceData.check_out.trim() ? formatTime(attendanceData.check_out.trim()) : '';
+
+  const customEmps = getCustomEmployees();
+  const empMatch = attendanceData.employees || customEmps.find((e) => String(e.id) === String(resolvedEmpId)) || null;
 
   const localRecord = {
     id: Date.now(),
@@ -933,6 +1049,7 @@ export const createAttendance = async (attendanceData) => {
     status: statusVal,
     check_in: inVal,
     check_out: outVal,
+    employees: empMatch,
     created_at: new Date().toISOString(),
   };
 
@@ -960,7 +1077,8 @@ export const createAttendance = async (attendanceData) => {
     }
 
     if (!res.error && res.data && res.data[0]) {
-      const synced = { ...localRecord, id: res.data[0].id };
+      removeCustomAttendance(localRecord.id);
+      const synced = { ...localRecord, ...res.data[0], id: res.data[0].id, employees: empMatch };
       saveCustomAttendance(synced);
       return [synced];
     }
@@ -973,10 +1091,13 @@ export const createAttendance = async (attendanceData) => {
 
 export const updateAttendance = async (id, attendanceData) => {
   const targetId = id;
-  const dateVal = attendanceData.attendance_date || attendanceData.date || new Date().toISOString().split('T')[0];
+  const dateVal = normalizeDate(attendanceData.attendance_date || attendanceData.date) || getTodayDateString();
   const statusVal = attendanceData.status || 'Present';
-  const inVal = attendanceData.check_in || '09:00';
-  const outVal = attendanceData.check_out || '17:00';
+  const inVal = attendanceData.check_in ? formatTime(attendanceData.check_in) : '09:00 AM';
+  const outVal = attendanceData.check_out ? formatTime(attendanceData.check_out) : '';
+
+  const customEmps = getCustomEmployees();
+  const empMatch = attendanceData.employees || customEmps.find((e) => String(e.id) === String(attendanceData.employee_id)) || null;
 
   const updatedRecord = {
     id: targetId,
@@ -986,6 +1107,7 @@ export const updateAttendance = async (id, attendanceData) => {
     status: statusVal,
     check_in: inVal,
     check_out: outVal,
+    employees: empMatch,
   };
 
   saveCustomAttendance(updatedRecord);
@@ -1076,7 +1198,8 @@ export const getLeaveRequests = async () => {
 
   // Provide initial leave records for sample staff if database is unseeded
   if (combined.length === 0) {
-    DEFAULT_SAMPLE_LEAVES.forEach((l) => {
+    const freshLeaves = getDefaultSampleLeaves();
+    freshLeaves.forEach((l) => {
       const idKey = String(l.id);
       if (!deletedSet.has(idKey)) {
         combined.push(l);
@@ -1178,7 +1301,23 @@ export const approveLeaveFinal = async (id) => {
   const current = getCustomLeaves();
   const found = current.find((l) => String(l.id) === String(id));
   if (found) {
-    saveCustomLeave({ ...found, head_approved: true, final_approved: true, status: 'Approved' });
+    if (found.head_rejected || found.status === 'Rejected') {
+      throw new Error('This leave request cannot proceed to Stage 2 (HR Final Approval) because it was rejected by the Department Head.');
+    }
+
+    // Check if applicant is a Department Head (Department Head is only approved by HR!)
+    const emps = getCustomEmployees();
+    const matchedEmp = emps.find((e) => String(e.id) === String(found.employee_id));
+    const depts = getCustomDepartments();
+    const isDeptHeadApplicant =
+      (matchedEmp?.designation && (matchedEmp.designation.toLowerCase().includes('head') || matchedEmp.designation.toLowerCase().includes('director') || matchedEmp.designation.toLowerCase().includes('chief'))) ||
+      depts.some((d) => String(d.head_employee_id) === String(found.employee_id));
+
+    if (!isDeptHeadApplicant && !found.head_approved) {
+      throw new Error('This leave request requires Stage 1 Department Head approval before HR can grant final approval.');
+    }
+
+    saveCustomLeave({ ...found, head_approved: true, head_rejected: false, final_approved: true, status: 'Approved' });
   }
 
   try {
@@ -1201,8 +1340,21 @@ export const approveLeaveFinal = async (id) => {
 export const rejectLeave = async (id, rejectedByRole = 'Approver') => {
   const current = getCustomLeaves();
   const found = current.find((l) => String(l.id) === String(id));
+  const isDeptHead = rejectedByRole === 'Dept Head' || (rejectedByRole || '').toLowerCase().includes('head');
+
+  const updatedRecord = {
+    ...found,
+    head_approved: false,
+    head_rejected: isDeptHead,
+    final_approved: false,
+    status: 'Rejected',
+    rejected_by: rejectedByRole,
+    rejected_at_stage: isDeptHead ? 'Stage 1' : 'Stage 2',
+    rejected_at: new Date().toISOString(),
+  };
+
   if (found) {
-    saveCustomLeave({ ...found, head_approved: false, final_approved: false, status: 'Rejected' });
+    saveCustomLeave(updatedRecord);
   }
 
   try {
@@ -1231,7 +1383,7 @@ export const updateLeaveStatus = async (id, status) => {
 
   try {
     await supabase.from('leaves').update({ status }).eq('id', id);
-  } catch (e) {}
+  } catch (e) { }
 
   return true;
 };
@@ -1427,7 +1579,7 @@ export const deletePayrollRecord = async (id) => {
 
   try {
     await supabase.from('payslips').delete().eq('payroll_id', id);
-  } catch (e) {}
+  } catch (e) { }
 
   try {
     await supabase.from('payroll').delete().eq('id', id);

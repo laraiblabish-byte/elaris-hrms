@@ -68,9 +68,12 @@ export const EmployeeDetailsModal = ({ isOpen, onClose, employee, onEdit, onView
 
           <div className="rounded-xl border border-gray-100 bg-gray-50/70 p-3.5 space-y-1">
             <span className="text-[#676F9D] flex items-center gap-1.5 font-medium">
-              <Award className="w-3.5 h-3.5 text-[#FFB17A]" /> Benefits Policy Tier
+              <Award className="w-3.5 h-3.5 text-[#FFB17A]" /> Grade Level – Specialist Tier
             </span>
-            <p className="font-bold text-[#2D3250] text-sm">{tier} Level Policy</p>
+            <p className="font-bold text-[#2D3250] text-sm">{tier} Tier Policy</p>
+            <p className="text-[11px] text-gray-500 mt-0.5">
+              Grade Level – Specialist Tier refers to an employee's professional experience and seniority level within the organization.
+            </p>
           </div>
 
           <div className="rounded-xl border border-gray-100 bg-gray-50/70 p-3.5 space-y-1 sm:col-span-2">

@@ -2,7 +2,7 @@ import React, { useRef } from 'react';
 import { Modal } from '../../components/common/Modal';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
-import { Printer, Download, Sparkles, Building2, User, Calendar, Banknote, CheckCircle2 } from 'lucide-react';
+import { Printer, Sparkles } from 'lucide-react';
 import { formatCurrency, formatDate, getEmployeeDisplayName } from '../../utils/formatters';
 
 export const PayslipModal = ({ isOpen, onClose, payslipData }) => {
@@ -54,19 +54,19 @@ export const PayslipModal = ({ isOpen, onClose, payslipData }) => {
         {/* Printable Payslip Card */}
         <div
           ref={printRef}
-          className="print-area rounded-2xl bg-white p-8 sm:p-10 border-2 border-gray-200 shadow-sm text-[#2D3250]"
+          className="print-area rounded-2xl bg-white p-6 sm:p-8 border-2 border-gray-200 shadow-sm text-[#2D3250] print:border print:p-4 print:rounded-lg print:text-xs"
         >
           {/* Header */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b-2 border-[#2D3250] pb-6 gap-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between border-b-2 border-[#2D3250] pb-4 gap-3 print:pb-2.5">
             <div className="flex items-center gap-3">
-              <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-[#2D3250] text-[#FFB17A] font-bold">
-                <Sparkles className="h-6 w-6" />
+              <div className="flex h-10 w-10 sm:h-12 sm:w-12 items-center justify-center rounded-xl bg-[#2D3250] text-[#FFB17A] font-bold print:h-8 print:w-8">
+                <Sparkles className="h-5 w-5 sm:h-6 sm:w-6 print:h-4 print:w-4" />
               </div>
               <div>
-                <h2 className="text-2xl font-black tracking-tight text-[#2D3250]">
+                <h2 className="text-xl sm:text-2xl font-black tracking-tight text-[#2D3250] print:text-lg">
                   Elaris<span className="text-[#FFB17A]">Solutions</span>
                 </h2>
-                <p className="text-xs uppercase tracking-widest text-[#676F9D] font-bold">
+                <p className="text-[10px] sm:text-xs uppercase tracking-widest text-[#676F9D] font-bold">
                   HR & Payroll Management
                 </p>
               </div>
@@ -86,8 +86,8 @@ export const PayslipModal = ({ isOpen, onClose, payslipData }) => {
           </div>
 
           {/* Employee & Organization Details */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-6 py-6 border-b border-gray-200 text-xs">
-            <div className="space-y-2">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 py-4 border-b border-gray-200 text-xs print:py-2.5 print:gap-3">
+            <div className="space-y-1.5">
               <p className="font-bold uppercase tracking-wider text-[#676F9D] text-[10px]">
                 Employee Information
               </p>
@@ -106,19 +106,16 @@ export const PayslipModal = ({ isOpen, onClose, payslipData }) => {
               </p>
             </div>
 
-            <div className="space-y-2 sm:text-right">
+            <div className="space-y-1.5 sm:text-right">
               <p className="font-bold uppercase tracking-wider text-[#676F9D] text-[10px]">
                 Payroll Cycle & Organization
               </p>
               <p className="text-sm font-bold text-[#2D3250]">Elaris Solutions Global HR</p>
               <p className="text-gray-600">
-                <span className="font-semibold text-[#424769]">Payment Mode:</span> Direct Deposit / Bank Transfer
+                <span className="font-semibold text-[#424769]">Pay Period:</span> {payroll?.month || 'Current Cycle'}
               </p>
               <p className="text-gray-600">
-                <span className="font-semibold text-[#424769]">Payment Status:</span>{' '}
-                <span className="font-bold text-emerald-700">
-                  {payroll?.payment_status || 'Paid'}
-                </span>
+                <span className="font-semibold text-[#424769]">Status:</span> {payroll?.status || 'Paid'}
               </p>
               <p className="text-gray-600">
                 <span className="font-semibold text-[#424769]">Generated:</span> {formatDate(new Date())}
@@ -127,14 +124,14 @@ export const PayslipModal = ({ isOpen, onClose, payslipData }) => {
           </div>
 
           {/* Earnings & Deductions Tables */}
-          <div className="py-6 grid grid-cols-1 md:grid-cols-2 gap-8">
+          <div className="py-4 grid grid-cols-1 md:grid-cols-2 gap-6 print:py-2.5 print:gap-4">
             {/* Earnings */}
             <div>
               <h4 className="text-xs font-bold uppercase tracking-wider text-[#2D3250] mb-3 pb-2 border-b-2 border-emerald-500 flex justify-between">
                 <span>Earnings Description</span>
                 <span>Amount</span>
               </h4>
-              <div className="space-y-2.5 text-xs">
+              <div className="space-y-2 text-xs">
                 <div className="flex justify-between text-gray-700">
                   <span>Basic Salary</span>
                   <span className="font-mono font-medium">{formatCurrency(basic)}</span>
@@ -160,7 +157,7 @@ export const PayslipModal = ({ isOpen, onClose, payslipData }) => {
                 <span>Deductions Description</span>
                 <span>Amount</span>
               </h4>
-              <div className="space-y-2.5 text-xs">
+              <div className="space-y-2 text-xs">
                 <div className="flex justify-between text-gray-700">
                   <span>Tax Withholding & Social Security</span>
                   <span className="font-mono font-medium">{formatCurrency(deductions * 0.7)}</span>
@@ -182,33 +179,33 @@ export const PayslipModal = ({ isOpen, onClose, payslipData }) => {
           </div>
 
           {/* Net Salary Highlight Bar */}
-          <div className="mt-4 rounded-xl bg-gradient-to-r from-[#2D3250] to-[#424769] p-5 text-white flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="mt-3 rounded-xl bg-gradient-to-r from-[#2D3250] to-[#424769] p-4 text-white flex flex-col sm:flex-row items-center justify-between gap-3 print:p-2.5 print:mt-2 print:rounded-lg">
             <div>
-              <p className="text-xs uppercase font-bold tracking-wider text-[#FFB17A]">
+              <p className="text-xs uppercase font-bold tracking-wider text-[#FFB17A] print:text-[10px]">
                 Net Take-Home Pay
               </p>
-              <p className="text-xs text-gray-300">
+              <p className="text-[11px] text-gray-300 print:text-[9px]">
                 Gross Earnings minus Total Deductions
               </p>
             </div>
             <div className="text-right">
-              <p className="text-3xl font-black text-[#FFB17A] font-mono tracking-tight">
+              <p className="text-2xl font-black text-[#FFB17A] font-mono tracking-tight print:text-xl">
                 {formatCurrency(net)}
               </p>
             </div>
           </div>
 
           {/* Footer signature line */}
-          <div className="mt-12 pt-8 border-t border-gray-200 grid grid-cols-2 gap-8 text-center text-xs text-gray-500">
+          <div className="mt-6 pt-4 border-t border-gray-200 grid grid-cols-2 gap-6 text-center text-xs text-gray-500 print:mt-3.5 print:pt-2 print:text-[10px]">
             <div>
-              <div className="border-b border-gray-300 w-48 mx-auto mb-2 pb-6"></div>
+              <div className="border-b border-gray-300 w-40 mx-auto mb-1.5 pb-4 print:pb-2.5"></div>
               <p className="font-semibold text-[#2D3250]">Authorized HR Representative</p>
-              <p className="text-[11px] text-gray-400">Elaris Solutions Inc.</p>
+              <p className="text-[10px] text-gray-400">Elaris Solutions Inc.</p>
             </div>
             <div>
-              <div className="border-b border-gray-300 w-48 mx-auto mb-2 pb-6"></div>
+              <div className="border-b border-gray-300 w-40 mx-auto mb-1.5 pb-4 print:pb-2.5"></div>
               <p className="font-semibold text-[#2D3250]">Employee Acknowledgment</p>
-              <p className="text-[11px] text-gray-400">Signature on File</p>
+              <p className="text-[10px] text-gray-400">Signature on File</p>
             </div>
           </div>
         </div>
@@ -225,4 +222,3 @@ export const PayslipModal = ({ isOpen, onClose, payslipData }) => {
     </Modal>
   );
 };
-

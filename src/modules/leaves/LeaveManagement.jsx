@@ -34,7 +34,7 @@ import {
   getDepartments,
   getEmployees,
 } from '../../utils/dbHelpers';
-import { formatDate, getEmployeeDisplayName } from '../../utils/formatters';
+import { formatDate, getEmployeeDisplayName, calculateLeaveDays } from '../../utils/formatters';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 
@@ -134,14 +134,46 @@ export const LeaveManagement = ({ setActiveTab }) => {
     (userRole || '').toLowerCase().includes('hr') ||
     ((userRole || '').toLowerCase().includes('admin') && !isHeadAccount);
 
+  // Helper to identify if applicant is a Department Head
+  // Strictly respects rule: Department Head is ONLY approved by HR!
+  const isApplicantDeptHead = (leave) => {
+    if (!leave) return false;
+    const emp = leave.employees || employees.find((e) => String(e.id) === String(leave.employee_id));
+    const desig = (emp?.designation || '').toLowerCase();
+    const isHeadDesig = desig.includes('head') || desig.includes('director') || desig.includes('chief');
+    const isHeadOfAnyDept = departments.some((d) => String(d.head_employee_id) === String(leave.employee_id));
+    const isHeadRole = (leave.user_role || emp?.role || '').toLowerCase().includes('head');
+    return Boolean(isHeadDesig || isHeadOfAnyDept || isHeadRole);
+  };
+
   // Check if current user can approve Stage 1 (Department Head Review)
+  // Rules:
+  // 1. Department Head applicants are ONLY approved by HR (they cannot be approved by a Dept Head, nor self-approved)
+  // 2. Department Heads can only approve employees in their own department
   const canApproveHead = (leave) => {
-    return isHeadAccount;
+    if (!isHeadAccount) return false;
+    if (!leave) return true;
+    if (currentEmployee?.id && String(leave.employee_id) === String(currentEmployee.id)) return false;
+    if (isApplicantDeptHead(leave)) return false;
+    if (!isSuperAdmin && !isHRAccount && currentEmployee?.department) {
+      const emp = leave.employees || employees.find((e) => String(e.id) === String(leave.employee_id));
+      const empDept = emp?.department || '';
+      if (empDept && currentEmployee.department.toLowerCase() !== empDept.toLowerCase()) {
+        return false;
+      }
+    }
+    return true;
   };
 
   // Check if current user can approve Stage 2 (Final HR Approval)
-  const canApproveHR = () => {
-    return isHRAccount;
+  // HR approves regular leaves after Stage 1, AND approves Department Head requests directly!
+  const canApproveHR = (leave) => {
+    if (!isHRAccount) return false;
+    if (leave) {
+      if (leave.head_rejected || leave.status === 'Rejected') return false;
+      if (!isApplicantDeptHead(leave) && !leave.head_approved) return false;
+    }
+    return true;
   };
 
   // Stage 1: Department Head Approval (head approval on head account)
@@ -232,15 +264,21 @@ export const LeaveManagement = ({ setActiveTab }) => {
       })
     : leaves;
 
-  // Stage 1: Pending Dept Head Review (head_approved is false/null and status is Pending)
+  // Stage 1: Pending Dept Head Review (only for regular employees; Department Heads are only approved by HR!)
   const stage1Leaves = scopedLeaves.filter(
-    (l) => l.status === 'Pending' && !l.head_approved
+    (l) => l.status === 'Pending' && !l.head_approved && !l.head_rejected && !isApplicantDeptHead(l)
   );
 
-  // Stage 2: Pending Final HR Approval (head_approved is true and final_approved is false and status is Pending)
-  // Strictly respects rule: "Do not allow the next-level approver to see pending requests before Department Head approval."
+  // Stage 2: Pending Final HR Approval
+  // Strictly respects rule: Department Head is ONLY approved by HR!
+  // Includes requests endorsed by Dept Head, plus Department Head applications directly
   const stage2Leaves = scopedLeaves.filter(
-    (l) => l.status === 'Pending' && Boolean(l.head_approved) && !l.final_approved
+    (l) =>
+      l.status === 'Pending' &&
+      !l.head_rejected &&
+      l.status !== 'Rejected' &&
+      !l.final_approved &&
+      (Boolean(l.head_approved) || isApplicantDeptHead(l))
   );
 
   // Fully Approved: head_approved and final_approved are true, or status === 'Approved'
@@ -270,9 +308,14 @@ export const LeaveManagement = ({ setActiveTab }) => {
     // Workflow tab filtering
     let matchesTab = true;
     if (workflowTab === 'stage1') {
-      matchesTab = l.status === 'Pending' && !l.head_approved;
+      matchesTab = l.status === 'Pending' && !l.head_approved && !l.head_rejected && !isApplicantDeptHead(l);
     } else if (workflowTab === 'stage2') {
-      matchesTab = l.status === 'Pending' && Boolean(l.head_approved) && !l.final_approved;
+      matchesTab =
+        l.status === 'Pending' &&
+        !l.head_rejected &&
+        l.status !== 'Rejected' &&
+        !l.final_approved &&
+        (Boolean(l.head_approved) || isApplicantDeptHead(l));
     } else if (workflowTab === 'approved') {
       matchesTab = l.status === 'Approved';
     } else if (workflowTab === 'rejected') {
@@ -639,6 +682,9 @@ export const LeaveManagement = ({ setActiveTab }) => {
                   const isHeadApproved = Boolean(leave.head_approved);
                   const isFinalApproved = Boolean(leave.final_approved);
                   const isRejected = leave.status === 'Rejected';
+                  const isHeadRejected = isRejected && (!isHeadApproved || Boolean(leave.head_rejected) || leave.rejected_by === 'Dept Head' || leave.rejected_at_stage === 'Stage 1');
+                  const isHRRejected = isRejected && !isHeadRejected;
+                  const isApplicantHead = isApplicantDeptHead(leave);
 
                   return (
                     <tr key={leave.id} className="hover:bg-gray-50/70 transition-colors">
@@ -666,25 +712,51 @@ export const LeaveManagement = ({ setActiveTab }) => {
                       </td>
 
                       <td className="px-6 py-4 font-medium text-[#424769] whitespace-nowrap">
-                        <div className="flex items-center gap-1.5">
-                          <Calendar className="w-3.5 h-3.5 text-[#676F9D]" />
-                          <span>
-                            {formatDate(leave.start_date)} - {formatDate(leave.end_date)}
-                          </span>
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-1.5">
+                            <Calendar className="w-3.5 h-3.5 text-[#FFB17A]" />
+                            <span className="font-bold text-[#2D3250]">
+                              {formatDate(leave.start_date)} &ndash; {formatDate(leave.end_date)}
+                            </span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <span className="inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-md bg-[#2D3250] text-[#FFB17A]">
+                              <Clock className="w-3 h-3 text-[#FFB17A]" />
+                              {calculateLeaveDays(leave.start_date, leave.end_date)} {calculateLeaveDays(leave.start_date, leave.end_date) === 1 ? 'Day' : 'Days'} Duration
+                            </span>
+                          </div>
                         </div>
                       </td>
 
                       {/* Two-Level Visual Workflow Status */}
                       <td className="px-6 py-4">
                         <div className="space-y-1.5">
-                          {isRejected ? (
+                          {isHeadRejected ? (
+                            <div>
+                              <Badge variant="danger" size="sm">
+                                Rejected by Dept Head
+                              </Badge>
+                              <p className="text-[10px] font-semibold text-rose-600 mt-0.5">
+                                Terminated &bull; Does not proceed to Stage 2 HR
+                              </p>
+                            </div>
+                          ) : isHRRejected ? (
                             <Badge variant="danger" size="sm">
-                              Rejected
+                              Rejected by HR (Stage 2)
                             </Badge>
                           ) : isFinalApproved ? (
                             <Badge variant="success" size="sm" className="font-bold">
                               Fully Approved
                             </Badge>
+                          ) : isApplicantHead && leave.status === 'Pending' ? (
+                            <div>
+                              <Badge variant="info" size="sm" className="font-bold">
+                                Pending HR Approval
+                              </Badge>
+                              <p className="text-[10px] font-semibold text-blue-600 mt-0.5">
+                                Department Head &bull; Only Approved by HR
+                              </p>
+                            </div>
                           ) : isHeadApproved ? (
                             <Badge variant="info" size="sm">
                               Pending Final HR Approval
@@ -696,33 +768,59 @@ export const LeaveManagement = ({ setActiveTab }) => {
                           )}
 
                           {/* Stepper Pill */}
-                          <div className="flex items-center gap-1 text-[10px] text-gray-500 font-medium">
-                            <span
-                              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded ${
-                                isHeadApproved
-                                  ? 'bg-emerald-50 text-emerald-700 font-bold'
-                                  : isRejected
-                                  ? 'bg-rose-50 text-rose-600'
-                                  : 'bg-amber-50 text-amber-700'
-                              }`}
-                            >
-                              1. Head: {isHeadApproved ? 'Approved' : isRejected ? 'Declined' : 'Pending'}
-                            </span>
-                            <ArrowRight className="w-2.5 h-2.5 text-gray-400" />
-                            <span
-                              className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded ${
-                                isFinalApproved
-                                  ? 'bg-emerald-50 text-emerald-700 font-bold'
-                                  : isRejected
-                                  ? 'bg-rose-50 text-rose-600'
-                                  : isHeadApproved
-                                  ? 'bg-blue-50 text-blue-700 font-semibold'
-                                  : 'bg-gray-100 text-gray-400'
-                              }`}
-                            >
-                              2. HR: {isFinalApproved ? 'Approved' : isRejected ? 'Declined' : 'Pending'}
-                            </span>
-                          </div>
+                          {isApplicantHead ? (
+                            <div className="flex items-center gap-1 text-[10px] text-gray-500 font-medium">
+                              <span
+                                className="flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 font-bold"
+                                title="Department Head requests bypass Stage 1 and are only approved by HR"
+                              >
+                                1. Head: Bypassed
+                              </span>
+                              <ArrowRight className="w-2.5 h-2.5 text-gray-400" />
+                              <span
+                                className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded ${
+                                  isFinalApproved
+                                    ? 'bg-emerald-50 text-emerald-700 font-bold'
+                                    : isHRRejected
+                                    ? 'bg-rose-50 text-rose-700 font-bold'
+                                    : 'bg-amber-50 text-amber-700 font-bold'
+                                }`}
+                              >
+                                2. HR: {isFinalApproved ? 'Approved' : isHRRejected ? 'Rejected' : 'Pending Review'}
+                              </span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1 text-[10px] text-gray-500 font-medium">
+                              <span
+                                className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded ${
+                                  isHeadApproved
+                                    ? 'bg-emerald-50 text-emerald-700 font-bold'
+                                    : isHeadRejected
+                                    ? 'bg-rose-50 text-rose-700 font-bold'
+                                    : 'bg-amber-50 text-amber-700'
+                                }`}
+                              >
+                                1. Head: {isHeadApproved ? 'Approved' : isHeadRejected ? 'Rejected' : 'Pending'}
+                              </span>
+                              <ArrowRight className="w-2.5 h-2.5 text-gray-400" />
+                              <span
+                                className={`flex items-center gap-0.5 px-1.5 py-0.5 rounded ${
+                                  isHeadRejected
+                                    ? 'bg-gray-100 text-gray-400 line-through'
+                                    : isFinalApproved
+                                    ? 'bg-emerald-50 text-emerald-700 font-bold'
+                                    : isHRRejected
+                                    ? 'bg-rose-50 text-rose-700 font-bold'
+                                    : isHeadApproved
+                                    ? 'bg-blue-50 text-blue-700 font-semibold'
+                                    : 'bg-gray-100 text-gray-400'
+                                }`}
+                                title={isHeadRejected ? 'Department Head rejected this request. It did not proceed to Stage 2 (HR Final Approval).' : ''}
+                              >
+                                2. HR: {isHeadRejected ? 'Stopped' : isFinalApproved ? 'Approved' : isHRRejected ? 'Rejected' : 'Pending'}
+                              </span>
+                            </div>
+                          )}
                         </div>
                       </td>
 
@@ -735,8 +833,41 @@ export const LeaveManagement = ({ setActiveTab }) => {
                       {/* Approval Actions */}
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {/* Stage 1: Department Head Approval Button (Head approval on head account) */}
-                          {leave.status === 'Pending' && !isHeadApproved && (
+                          {/* Case A: Applicant is Department Head (Only approved by HR!) */}
+                          {leave.status === 'Pending' && isApplicantHead && !isHeadRejected && (
+                            canApproveHR(leave) ? (
+                              <>
+                                <button
+                                  onClick={() => handleFinalApprove(leave.id)}
+                                  disabled={actionLoading}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] shadow-xs transition-colors cursor-pointer"
+                                  title="Approve Department Head Leave Application (Only HR can approve)"
+                                >
+                                  <ShieldCheck className="w-3.5 h-3.5" />
+                                  HR Approve Head
+                                </button>
+                                <button
+                                  onClick={() => handleReject(leave.id, 'HR Admin')}
+                                  disabled={actionLoading}
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 font-semibold text-[11px] transition-colors cursor-pointer"
+                                  title="Reject Department Head Application"
+                                >
+                                  <XCircle className="w-3.5 h-3.5" />
+                                  Reject
+                                </button>
+                              </>
+                            ) : (
+                              <span
+                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-bold"
+                                title="Department Head applications are only approved by HR"
+                              >
+                                <ShieldCheck className="w-3 h-3 text-blue-600" /> Dept Head &bull; Only Approved by HR
+                              </span>
+                            )
+                          )}
+
+                          {/* Case B: Regular Staff - Stage 1: Department Head Approval Button */}
+                          {leave.status === 'Pending' && !isApplicantHead && !isHeadApproved && !isHeadRejected && (
                             canApproveHead(leave) ? (
                               <>
                                 <button
@@ -752,7 +883,7 @@ export const LeaveManagement = ({ setActiveTab }) => {
                                   onClick={() => handleReject(leave.id, 'Dept Head')}
                                   disabled={actionLoading}
                                   className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 font-semibold text-[11px] transition-colors cursor-pointer"
-                                  title="Reject Application"
+                                  title="Reject Application (Terminates Request at Stage 1)"
                                 >
                                   <XCircle className="w-3.5 h-3.5" />
                                   Reject
@@ -765,10 +896,9 @@ export const LeaveManagement = ({ setActiveTab }) => {
                             )
                           )}
 
-                          {/* Stage 2: Final HR / Management Approval Button (HR approval on hr account) */}
-                          {/* Strictly visible ONLY after Stage 1 (isHeadApproved) has succeeded! */}
-                          {leave.status === 'Pending' && isHeadApproved && !isFinalApproved && (
-                            canApproveHR() ? (
+                          {/* Case C: Regular Staff - Stage 2: Final HR Approval Button (Visible only after Stage 1 approved) */}
+                          {leave.status === 'Pending' && !isApplicantHead && isHeadApproved && !isFinalApproved && !isHeadRejected && (
+                            canApproveHR(leave) ? (
                               <>
                                 <button
                                   onClick={() => handleFinalApprove(leave.id)}
@@ -806,7 +936,7 @@ export const LeaveManagement = ({ setActiveTab }) => {
                           {/* Rejected Status Badge */}
                           {leave.status === 'Rejected' && (
                             <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold">
-                              <XCircle className="w-3 h-3 text-rose-600" /> Rejected
+                              <XCircle className="w-3 h-3 text-rose-600" /> {isHeadRejected ? 'Rejected by Head' : 'Rejected by HR'}
                             </span>
                           )}
 

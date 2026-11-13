@@ -281,7 +281,7 @@ export const EmployeeManagement = ({ setActiveTab }) => {
             <div className="mt-2 text-3xl font-black text-[#2D3250]">
               4
             </div>
-            <p className="text-[11px] text-gray-500 mt-1">Corporate grade tiers</p>
+            <p className="text-[11px] text-gray-500 mt-1">Grade Level – Specialist Tiers</p>
           </div>
         </div>
 
@@ -342,38 +342,27 @@ export const EmployeeManagement = ({ setActiveTab }) => {
           </div>
         </div>
 
-        {/* Seniority & Role Tier Numbers */}
+        {/* Personal Assigned Role Card for Standard Employees */}
         <div className="rounded-2xl bg-white border border-gray-100 shadow-xs p-6">
-          <div className="mb-4">
-            <h2 className="text-base font-bold text-[#2D3250] flex items-center gap-2">
-              <Award className="w-4 h-4 text-amber-500" />
-              Workforce Seniority Breakdown
-            </h2>
-            <p className="text-xs text-gray-500 mt-0.5">
-              Staff counts by organizational experience tier
-            </p>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="p-4 rounded-xl bg-purple-50/70 border border-purple-100 text-center">
-              <span className="text-[11px] font-bold uppercase text-purple-700">Executive Tier</span>
-              <div className="text-2xl font-black text-purple-900 mt-1">{tierCounts.Executive}</div>
-              <span className="text-[10px] text-purple-600 font-medium">Leadership Staff</span>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-xl bg-amber-50 text-amber-600 shrink-0">
+                <Award className="w-5 h-5" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-[#2D3250]">
+                  Your Assigned Corporate Role & Grade Level
+                </h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Grade Level – Specialist Tier refers to an employee's professional experience and seniority level within the organization.
+                </p>
+              </div>
             </div>
-            <div className="p-4 rounded-xl bg-indigo-50/70 border border-indigo-100 text-center">
-              <span className="text-[11px] font-bold uppercase text-indigo-700">Senior Tier</span>
-              <div className="text-2xl font-black text-indigo-900 mt-1">{tierCounts.Senior}</div>
-              <span className="text-[10px] text-indigo-600 font-medium">Senior Personnel</span>
-            </div>
-            <div className="p-4 rounded-xl bg-sky-50/70 border border-sky-100 text-center">
-              <span className="text-[11px] font-bold uppercase text-sky-700">Mid-Level Tier</span>
-              <div className="text-2xl font-black text-sky-900 mt-1">{tierCounts['Mid-Level']}</div>
-              <span className="text-[10px] text-sky-600 font-medium">Core Engineers & Staff</span>
-            </div>
-            <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-100 text-center">
-              <span className="text-[11px] font-bold uppercase text-emerald-700">Junior Tier</span>
-              <div className="text-2xl font-black text-emerald-900 mt-1">{tierCounts.Junior}</div>
-              <span className="text-[10px] text-emerald-600 font-medium">Associates & Interns</span>
+            <div>
+              <span className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-[#2D3250] text-[#FFB17A] shadow-xs">
+                <ShieldCheck className="w-4 h-4 text-emerald-400" />
+                {currentEmployee?.role_tier || 'Staff'} Tier &bull; {currentEmployee?.designation || 'Specialist'}
+              </span>
             </div>
           </div>
         </div>
@@ -444,7 +433,7 @@ export const EmployeeManagement = ({ setActiveTab }) => {
             Employee Management
           </h1>
           <p className="text-xs font-medium text-[#676F9D] mt-1">
-            Manage organization directory, employee credentials, roles, and compensation
+            Manage organization directory, employee credentials, roles, and compensation &bull; Grade Level – Specialist Tier refers to an employee's professional experience and seniority level within the organization.
           </p>
         </div>
 
@@ -585,7 +574,7 @@ export const EmployeeManagement = ({ setActiveTab }) => {
                   <th className="px-6 py-4">Employee</th>
                   <th className="px-6 py-4">Department</th>
                   <th className="px-6 py-4">Designation</th>
-                  <th className="px-6 py-4">Benefit Tier</th>
+                  <th className="px-6 py-4" title="Grade Level – Specialist Tier refers to an employee's professional experience and seniority level within the organization.">Grade Level / Specialist Tier</th>
                   <th className="px-6 py-4">Contact</th>
                   <th className="px-6 py-4">Salary (PKR)</th>
                   <th className="px-6 py-4 text-right">Actions</th>

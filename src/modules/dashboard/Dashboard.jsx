@@ -24,7 +24,7 @@ import {
   getPayrollRecords,
   updateLeaveStatus,
 } from '../../utils/dbHelpers';
-import { formatCurrency, formatDate, getEmployeeDisplayName } from '../../utils/formatters';
+import { formatCurrency, formatDate, formatTime, getEmployeeDisplayName, normalizeDate, isToday, getTodayDateString } from '../../utils/formatters';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 
@@ -68,34 +68,49 @@ export const Dashboard = ({ setActiveTab }) => {
       // Calculate personal records if logged in as standard employee
       const userEmail = (user?.email || '').toLowerCase().trim();
       const empId = currentEmployee?.id;
+      const matchedEmp = employeeList.find(
+        (e) => (e.email || '').toLowerCase().trim() === userEmail
+      );
+      const effectiveEmpId = currentEmployee?.id || matchedEmp?.id;
 
       const myAttList = attList.filter((a) => {
         if (empId && String(a.employee_id) === String(empId)) return true;
         if (userEmail && (a.employees?.email || '').toLowerCase().trim() === userEmail) return true;
+        const aEmpId = a.employee_id ? String(a.employee_id) : '';
+        if (effectiveEmpId && aEmpId === String(effectiveEmpId)) return true;
+        if (currentEmployee?.id && aEmpId === String(currentEmployee.id)) return true;
+        const emp = a.employees || employeeList.find((e) => String(e.id) === aEmpId);
+        const empEmail = (emp?.email || a.email || '').toLowerCase().trim();
+        if (userEmail && empEmail === userEmail) return true;
         return false;
       });
 
       const myLeaveList = leaveList.filter((l) => {
         if (empId && String(l.employee_id) === String(empId)) return true;
         if (userEmail && (l.employees?.email || '').toLowerCase().trim() === userEmail) return true;
+        const lEmpId = l.employee_id ? String(l.employee_id) : '';
+        if (effectiveEmpId && lEmpId === String(effectiveEmpId)) return true;
+        if (currentEmployee?.id && lEmpId === String(currentEmployee.id)) return true;
+        const emp = l.employees || employeeList.find((e) => String(e.id) === lEmpId);
+        const empEmail = (emp?.email || l.email || '').toLowerCase().trim();
+        if (userEmail && empEmail === userEmail) return true;
         return false;
       });
 
-      // Calculate Present today
-      const todayStr = new Date().toISOString().split('T')[0];
+      // Calculate Present today across company (or active scope)
       const presentCount = attList.filter(
-        (a) => a.attendance_date === todayStr && a.status === 'Present'
+        (a) => isToday(a.attendance_date || a.date || a.created_at) && (a.status || '').trim().toLowerCase() === 'present'
       ).length;
 
       // Pending leaves
-      const pendingCount = leaveList.filter((l) => l.status === 'Pending').length;
+      const pendingCount = leaveList.filter((l) => (l.status || '').trim().toLowerCase() === 'pending').length;
 
       // Total payroll net salary
       const payrollTotal = payrollList.reduce((acc, curr) => acc + (Number(curr.net_salary) || 0), 0);
 
       // Personal indicators
-      const myTodayAtt = myAttList.find((a) => a.attendance_date === todayStr);
-      const myPendingCount = myLeaveList.filter((l) => l.status === 'Pending').length;
+      const myTodayAtt = myAttList.find((a) => isToday(a.attendance_date || a.date || a.created_at));
+      const myPendingCount = myLeaveList.filter((l) => (l.status || '').trim().toLowerCase() === 'pending').length;
 
       setStats({
         totalEmployees: employeeList.length,
@@ -118,7 +133,7 @@ export const Dashboard = ({ setActiveTab }) => {
   useEffect(() => {
     loadDashboardData();
   }, [currentEmployee, user]);
-
+  
   const handleApproveLeave = async (id) => {
     if (!canManageHR) return;
     try {
@@ -129,7 +144,7 @@ export const Dashboard = ({ setActiveTab }) => {
       showToast(err.message || 'Error updating leave', 'error');
     }
   };
-
+  
   const handleRejectLeave = async (id) => {
     if (!canManageHR) return;
     try {
@@ -140,13 +155,13 @@ export const Dashboard = ({ setActiveTab }) => {
       showToast(err.message || 'Error updating leave', 'error');
     }
   };
-
+  
   const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || (isEmployeeRole ? 'Team Member' : 'Administrator');
-
+  
   if (loading) {
     return <LoadingSpinner message="Loading Elaris HRMS Dashboard..." size="lg" />;
   }
-
+  
   return (
     <div className="space-y-8 animate-in fade-in duration-300">
       {/* Welcome Hero Banner */}
@@ -154,7 +169,7 @@ export const Dashboard = ({ setActiveTab }) => {
         <div className="absolute right-0 top-0 translate-x-12 -translate-y-8 opacity-10 pointer-events-none">
           <Sparkles className="h-72 w-72" />
         </div>
-
+  
         <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
           <div className="space-y-2 max-w-xl">
             <div className="inline-flex items-center gap-2 rounded-full bg-[#FFB17A]/20 border border-[#FFB17A]/40 px-3 py-1 text-xs font-semibold text-[#FFB17A]">
@@ -170,7 +185,7 @@ export const Dashboard = ({ setActiveTab }) => {
                 : 'Here is your workforce summary, active departments, real-time attendance, and payroll operations.'}
             </p>
           </div>
-
+  
           <div className="flex flex-wrap items-center gap-3">
             {isEmployeeRole ? (
               <>
@@ -226,7 +241,7 @@ export const Dashboard = ({ setActiveTab }) => {
           </div>
         </div>
       </div>
-
+  
       {/* KPI Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
         <StatCard
@@ -237,7 +252,7 @@ export const Dashboard = ({ setActiveTab }) => {
           description={isEmployeeRole ? 'Company workforce' : 'Active personnel'}
           onClick={() => setActiveTab('employees')}
         />
-
+  
         <StatCard
           title="Departments"
           value={stats.totalDepartments}
@@ -246,7 +261,7 @@ export const Dashboard = ({ setActiveTab }) => {
           description="Operational units"
           onClick={() => setActiveTab('departments')}
         />
-
+  
         <StatCard
           title={isEmployeeRole ? 'My Today Status' : 'Present Today'}
           value={stats.presentToday}
@@ -255,7 +270,7 @@ export const Dashboard = ({ setActiveTab }) => {
           description={isEmployeeRole ? 'Daily attendance' : `Of ${stats.totalEmployees} total staff`}
           onClick={() => setActiveTab('attendance')}
         />
-
+  
         <StatCard
           title={isEmployeeRole ? 'My Pending Leaves' : 'Pending Leaves'}
           value={stats.pendingLeaves}
@@ -265,7 +280,7 @@ export const Dashboard = ({ setActiveTab }) => {
           onClick={() => setActiveTab('leaves')}
         />
       </div>
-
+  
       {/* Secondary Metric Bar */}
       <div className="rounded-2xl bg-white p-6 shadow-sm border border-gray-100 flex flex-col sm:flex-row items-center justify-between gap-4">
         {isEmployeeRole ? (
@@ -297,7 +312,7 @@ export const Dashboard = ({ setActiveTab }) => {
             </div>
           </div>
         )}
-
+  
         <Button
           variant="outline"
           size="sm"
@@ -308,7 +323,7 @@ export const Dashboard = ({ setActiveTab }) => {
           <ArrowRight className="w-3.5 h-3.5 ml-1" />
         </Button>
       </div>
-
+  
       {/* Content Split: Recent Attendance & Pending Leave Requests */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* Recent Attendance */}
@@ -331,7 +346,7 @@ export const Dashboard = ({ setActiveTab }) => {
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
-
+  
           <div className="overflow-x-auto">
             {recentAttendance.length === 0 ? (
               <div className="p-8 text-center text-sm text-gray-500">
@@ -362,8 +377,8 @@ export const Dashboard = ({ setActiveTab }) => {
                             record.status === 'Present'
                               ? 'success'
                               : record.status === 'Absent'
-                              ? 'danger'
-                              : 'warning'
+                                ? 'danger'
+                                : 'warning'
                           }
                           size="sm"
                         >
@@ -371,7 +386,7 @@ export const Dashboard = ({ setActiveTab }) => {
                         </Badge>
                       </td>
                       <td className="px-6 py-3.5 text-gray-500 font-mono">
-                        {record.check_in || '-'}
+                        {formatTime(record.check_in)}
                       </td>
                     </tr>
                   ))}
@@ -380,7 +395,7 @@ export const Dashboard = ({ setActiveTab }) => {
             )}
           </div>
         </div>
-
+  
         {/* Pending Leave Requests */}
         <div className="rounded-2xl bg-white shadow-sm border border-gray-100 overflow-hidden">
           <div className="flex items-center justify-between border-b border-gray-100 p-6">
@@ -401,7 +416,7 @@ export const Dashboard = ({ setActiveTab }) => {
               <ArrowRight className="w-3.5 h-3.5" />
             </button>
           </div>
-
+  
           <div className="divide-y divide-gray-100">
             {recentLeaves.length === 0 ? (
               <div className="p-8 text-center text-sm text-gray-500">
@@ -423,8 +438,8 @@ export const Dashboard = ({ setActiveTab }) => {
                           leave.status === 'Approved'
                             ? 'success'
                             : leave.status === 'Rejected'
-                            ? 'danger'
-                            : 'warning'
+                              ? 'danger'
+                              : 'warning'
                         }
                         size="sm"
                       >
@@ -440,8 +455,8 @@ export const Dashboard = ({ setActiveTab }) => {
                       </p>
                     )}
                   </div>
-
-                  {canManageHR && leave.status === 'Pending' && (
+  
+                  {canManageHR && leave.status === 'Pending' && Boolean(leave.head_approved) && !leave.head_rejected && (
                     <div className="flex items-center gap-2 shrink-0">
                       <button
                         onClick={() => handleApproveLeave(leave.id)}

@@ -8,6 +8,7 @@ import {
   Banknote,
   FileText,
   UserCheck,
+  User,
   LogOut,
   X,
   Sparkles,
@@ -37,6 +38,12 @@ export const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen, onLogoutCl
 
   const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
   const displayRole = userRole || profile?.role || user?.user_metadata?.role || (isHR ? 'HR Specialist' : 'Employee');
+  const avatarUrl =
+    profile?.avatar_url ||
+    user?.user_metadata?.avatar_url ||
+    (user?.id ? localStorage.getItem(`elaris_avatar_${user.id}`) : null) ||
+    (user?.email ? localStorage.getItem(`elaris_avatar_${user.email}`) : null) ||
+    '';
 
   const filteredNavItems = navigationItems.filter((item) => {
     if (isEmployee) {
@@ -124,9 +131,17 @@ export const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen, onLogoutCl
             onClick={() => handleSelectTab('profile')}
             className="flex items-center gap-3 rounded-xl p-2.5 transition-colors hover:bg-[#424769] cursor-pointer"
           >
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#424769] text-white border border-[#676F9D]/50 font-bold text-sm">
-              {displayName.charAt(0).toUpperCase()}
-            </div>
+            {avatarUrl ? (
+              <img
+                src={avatarUrl}
+                alt={displayName}
+                className="h-10 w-10 shrink-0 rounded-xl object-cover border border-[#676F9D]/50 shadow-xs"
+              />
+            ) : (
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#424769] text-[#FFB17A] border border-[#676F9D]/50 font-bold text-sm">
+                <User className="h-5 w-5" />
+              </div>
+            )}
             <div className="flex-1 overflow-hidden">
               <p className="truncate text-sm font-bold text-white">
                 {displayName}

@@ -17,6 +17,7 @@ import {
   Lock,
   UserCheck,
   ShieldCheck,
+  Printer,
 } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
@@ -31,7 +32,7 @@ import {
   deleteAttendance,
   getEmployees,
 } from '../../utils/dbHelpers';
-import { formatDate, formatTime, getEmployeeDisplayName } from '../../utils/formatters';
+import { formatDate, formatTime, getEmployeeDisplayName, normalizeDate, getTodayDateString, isToday } from '../../utils/formatters';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 
@@ -94,8 +95,11 @@ export const AttendanceManagement = () => {
       if (!effectiveEmpId) {
         throw new Error('Could not identify your employee profile. You can only record personal attendance from your authenticated account.');
       }
-      if (!selectedRecord && currentEmployee && String(formData.employee_id) !== String(currentEmployee.id)) {
-        throw new Error('Permission Denied: All accounts can only fill their own personal attendance form.');
+      if (!selectedRecord && currentEmployee && formData.employee_id && String(formData.employee_id) !== String(currentEmployee.id)) {
+        const targetEmp = employees.find((e) => String(e.id) === String(formData.employee_id));
+        if (targetEmp && (targetEmp.email || '').toLowerCase().trim() !== (user?.email || '').toLowerCase().trim()) {
+          throw new Error('Permission Denied: All accounts can only fill their own personal attendance form.');
+        }
       }
 
       if (selectedRecord) {
@@ -105,6 +109,16 @@ export const AttendanceManagement = () => {
         await updateAttendance(selectedRecord.id, formData);
         showToast('Attendance log updated in database', 'success');
       } else {
+        // Enforce: only one attendance mark per day per employee
+        const targetDate = normalizeDate(formData.attendance_date) || getTodayDateString();
+        const alreadyExists = records.some((r) => {
+          const rDate = normalizeDate(r.attendance_date || r.date);
+          return String(r.employee_id) === String(effectiveEmpId) && rDate === targetDate;
+        });
+        if (alreadyExists) {
+          throw new Error(`Attendance for this employee has already been marked on ${targetDate}. Only one attendance mark per day is permitted.`);
+        }
+
         await createAttendance({
           ...formData,
           employee_id: effectiveEmpId,
@@ -147,7 +161,7 @@ export const AttendanceManagement = () => {
   const handleQuickClockOut = async (record) => {
     try {
       const currentTime = new Date().toLocaleTimeString('en-US', {
-        hour12: false,
+        hour12: true,
         hour: '2-digit',
         minute: '2-digit',
       });
@@ -165,25 +179,40 @@ export const AttendanceManagement = () => {
   };
 
   // Only Head or HR can see who is on or attendance. Standard employees only see their own attendance records!
+  const userEmail = (user?.email || '').toLowerCase().trim();
+  const matchedEmpFromList = employees.find(
+    (e) => (e.email || '').toLowerCase().trim() === userEmail
+  );
+  const effectiveUserId = currentEmployee?.id || matchedEmpFromList?.id;
+
   const scopedRecords = !canViewAllAttendance
     ? records.filter((rec) => {
         const empId = currentEmployee?.id;
-        const userEmail = (user?.email || '').toLowerCase().trim();
         const recEmpId = rec.employee_id ? String(rec.employee_id) : '';
         const recEmail = (rec.employees?.email || rec.email || '').toLowerCase().trim();
+        if (effectiveUserId && recEmpId === String(effectiveUserId)) return true;
+        if (currentEmployee?.id && recEmpId === String(currentEmployee.id)) return true;
 
         if (empId && recEmpId === String(empId)) return true;
         if (userEmail && recEmail === userEmail) return true;
+        const emp = rec.employees || employees.find((e) => String(e.id) === recEmpId);
+        const empEmail = (emp?.email || rec.email || '').toLowerCase().trim();
+        if (userEmail && empEmail === userEmail) return true;
+
         return false;
       })
     : records;
 
   // Today statistics
-  const todayStr = new Date().toISOString().split('T')[0];
-  const todayRecords = scopedRecords.filter((r) => r.attendance_date === todayStr);
-  const presentToday = todayRecords.filter((r) => r.status === 'Present').length;
-  const lateToday = todayRecords.filter((r) => r.status === 'Late').length;
-  const absentToday = todayRecords.filter((r) => r.status === 'Absent').length;
+  const localToday = getTodayDateString();
+  const todayRecords = scopedRecords.filter((r) => isToday(r.attendance_date || r.date || r.created_at));
+  const myTodayRecord = scopedRecords.find((rec) => {
+    const cleanDate = normalizeDate(rec.attendance_date || rec.date || rec.created_at);
+    return isToday(cleanDate) && String(rec.employee_id) === String(effectiveUserId);
+  });
+  const presentToday = todayRecords.filter((r) => (r.status || '').trim().toLowerCase() === 'present').length;
+  const lateToday = todayRecords.filter((r) => (r.status || '').trim().toLowerCase() === 'late').length;
+  const absentToday = todayRecords.filter((r) => (r.status || '').trim().toLowerCase() === 'absent').length;
 
   // Filtered table data
   const filteredRecords = scopedRecords.filter((rec) => {
@@ -193,8 +222,9 @@ export const AttendanceManagement = () => {
       empName.includes(searchTerm.toLowerCase()) ||
       (emp?.email && emp.email.toLowerCase().includes(searchTerm.toLowerCase()));
 
-    const matchesDate = selectedDate ? rec.attendance_date === selectedDate : true;
-    const matchesStatus = statusFilter ? rec.status === statusFilter : true;
+    const cleanDate = normalizeDate(rec.attendance_date || rec.date);
+    const matchesDate = selectedDate ? cleanDate === selectedDate : true;
+    const matchesStatus = statusFilter ? (rec.status || '').trim().toLowerCase() === statusFilter.toLowerCase() : true;
 
     return matchesSearch && matchesDate && matchesStatus;
   });
@@ -215,7 +245,16 @@ export const AttendanceManagement = () => {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 no-print">
+          <Button
+            variant="outline"
+            size="sm"
+            icon={Printer}
+            onClick={() => window.print()}
+            title="Print attendance report"
+          >
+            Print Sheet
+          </Button>
           <Button
             variant="outline"
             size="sm"
@@ -225,24 +264,39 @@ export const AttendanceManagement = () => {
           >
             Refresh
           </Button>
-          <Button
-            variant="accent"
-            size="md"
-            icon={Plus}
-            onClick={() => {
-              setSelectedRecord(null);
-              setIsModalOpen(true);
-            }}
-            className="font-bold shadow-md cursor-pointer"
-          >
-            Log Personal Attendance
-          </Button>
+          {!canViewAllAttendance && myTodayRecord ? (
+            <Button
+              variant="accent"
+              size="md"
+              icon={CheckCircle2}
+              onClick={() => {
+                showToast(`Today's attendance is already marked (${myTodayRecord.status}). Only 1 attendance mark per day is permitted.`, 'info');
+              }}
+              className="font-bold shadow-md cursor-pointer bg-emerald-600 hover:bg-emerald-700 text-white"
+              title="Today's attendance has already been logged"
+            >
+              Today Marked ({myTodayRecord.status})
+            </Button>
+          ) : (
+            <Button
+              variant="accent"
+              size="md"
+              icon={Plus}
+              onClick={() => {
+                setSelectedRecord(null);
+                setIsModalOpen(true);
+              }}
+              className="font-bold shadow-md cursor-pointer"
+            >
+              Log Personal Attendance
+            </Button>
+          )}
         </div>
       </div>
 
       {/* Scope Banner for Standard Employees */}
       {!canViewAllAttendance && (
-        <div className="rounded-2xl bg-amber-50/70 border border-amber-200/80 p-3.5 text-xs text-amber-900 flex items-center justify-between gap-3">
+        <div className="rounded-2xl bg-amber-50/70 border border-amber-200/80 p-3.5 text-xs text-amber-900 flex items-center justify-between gap-3 no-print">
           <div className="flex items-center gap-2.5">
             <Lock className="w-4 h-4 text-amber-600 shrink-0" />
             <span>
@@ -255,6 +309,43 @@ export const AttendanceManagement = () => {
         </div>
       )}
 
+      {/* Single Daily Attendance Status Notice */}
+      {myTodayRecord && (
+        <div className="rounded-2xl bg-emerald-50/90 border border-emerald-200/90 p-4 text-xs text-emerald-950 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xs no-print animate-in fade-in">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-emerald-600 text-white flex items-center justify-center shrink-0 shadow-xs">
+              <CheckCircle2 className="w-5 h-5" />
+            </div>
+            <div>
+              <p className="font-bold text-sm text-emerald-900 flex items-center gap-2">
+                Today's Attendance Recorded
+                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-800 border border-emerald-300">
+                  1 Daily Mark Rule Active
+                </span>
+              </p>
+              <p className="text-emerald-700 text-xs mt-0.5">
+                Marked as <strong>{myTodayRecord.status}</strong> &bull; Check-in at <strong>{formatTime(myTodayRecord.check_in)}</strong> {myTodayRecord.check_out ? (
+                  <span>&bull; Checked-out at <strong>{formatTime(myTodayRecord.check_out)}</strong> (Shift Completed)</span>
+                ) : (
+                  <span>&bull; <em>Active shift in progress</em></span>
+                )}
+              </p>
+            </div>
+          </div>
+          {!myTodayRecord.check_out && (
+            <Button
+              variant="outline"
+              size="sm"
+              icon={LogOut}
+              onClick={() => handleQuickClockOut(myTodayRecord)}
+              className="bg-white border-emerald-300 text-emerald-800 hover:bg-emerald-100 shrink-0 font-bold"
+            >
+              Quick Clock Out
+            </Button>
+          )}
+        </div>
+      )}
+
       {/* Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
         <StatCard
@@ -262,7 +353,7 @@ export const AttendanceManagement = () => {
           value={presentToday}
           icon={CheckCircle2}
           accentColor="#10b981"
-          description={`Logged today (${todayStr})`}
+          description={`Logged today (${localToday})`}
         />
         <StatCard
           title="Late Arrivals"
@@ -281,7 +372,7 @@ export const AttendanceManagement = () => {
       </div>
 
       {/* Filters */}
-      <div className="rounded-2xl bg-white p-4 shadow-sm border border-gray-100 flex flex-col md:flex-row items-center justify-between gap-4">
+      <div className="rounded-2xl bg-white p-4 shadow-sm border border-gray-100 flex flex-col md:flex-row items-center justify-between gap-4 no-print">
         <div className="relative w-full md:w-72">
           <Search className="w-4 h-4 absolute left-3 top-3 text-[#676F9D]" />
           <input
@@ -372,7 +463,7 @@ export const AttendanceManagement = () => {
                   <th className="px-6 py-4">Status</th>
                   <th className="px-6 py-4">Check In</th>
                   <th className="px-6 py-4">Check Out</th>
-                  <th className="px-6 py-4 text-right">Actions</th>
+                  <th className="px-6 py-4 text-right no-print">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-100 text-xs">
@@ -416,20 +507,22 @@ export const AttendanceManagement = () => {
                         </Badge>
                       </td>
                       <td className="px-6 py-4 font-mono text-gray-600">
-                        {rec.check_in || '-'}
+                        {formatTime(rec.check_in)}
                       </td>
                       <td className="px-6 py-4 font-mono text-gray-600">
-                        {rec.check_out || (
+                        {rec.check_out ? (
+                          <span>{formatTime(rec.check_out)}</span>
+                        ) : (
                           <button
                             onClick={() => handleQuickClockOut(rec)}
-                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#FFB17A] hover:text-[#fca05f] cursor-pointer"
+                            className="inline-flex items-center gap-1 text-[11px] font-semibold text-[#FFB17A] hover:text-[#fca05f] cursor-pointer no-print"
                           >
                             <LogOut className="w-3 h-3" />
                             Clock Out
                           </button>
                         )}
                       </td>
-                      <td className="px-6 py-4 text-right">
+                      <td className="px-6 py-4 text-right no-print">
                         <div className="flex items-center justify-end gap-1">
                           {canViewAllAttendance && (
                             <>
@@ -478,6 +571,7 @@ export const AttendanceManagement = () => {
         clearError={() => setModalError(null)}
         employees={employees}
         currentEmployee={currentEmployee}
+        existingRecords={records}
       />
 
       {/* Delete Confirmation */}
@@ -493,4 +587,3 @@ export const AttendanceManagement = () => {
     </div>
   );
 };
-

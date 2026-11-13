@@ -37,21 +37,21 @@ export const Modal = ({
     <div className="fixed inset-0 z-[100] overflow-y-auto">
       {/* Dark backdrop overlay */}
       <div
-        className="fixed inset-0 bg-[#2D3250]/75 backdrop-blur-xs transition-opacity duration-200"
+        className="fixed inset-0 bg-[#2D3250]/75 backdrop-blur-xs transition-opacity duration-200 no-print"
         onClick={onClose}
         aria-hidden="true"
       />
 
       {/* Centering wrapper with relative z-index strictly ABOVE backdrop */}
-      <div className="flex min-h-full items-center justify-center p-4 sm:p-6 text-center relative z-20 pointer-events-none">
+      <div className="flex min-h-full items-center justify-center p-4 sm:p-6 text-center relative z-20 pointer-events-none print:p-0 print:block">
         <div
           className={`pointer-events-auto relative z-30 w-full ${
             sizeClasses[size] || sizeClasses.md
-          } transform overflow-hidden rounded-2xl bg-white text-left align-middle shadow-2xl transition-all border border-gray-100 flex flex-col my-8 animate-in fade-in zoom-in-95 duration-200`}
+          } transform overflow-hidden rounded-2xl bg-white text-left align-middle shadow-2xl transition-all border border-gray-100 flex flex-col my-8 animate-in fade-in zoom-in-95 duration-200 print:my-0 print:border-none print:shadow-none print:rounded-none`}
           onClick={(e) => e.stopPropagation()}
         >
           {/* Header */}
-          <div className="flex items-start justify-between border-b border-gray-100 bg-[#2D3250] px-6 py-5 text-white shrink-0">
+          <div className="flex items-start justify-between border-b border-gray-100 bg-[#2D3250] px-6 py-5 text-white shrink-0 no-print">
             <div>
               <h3 className="text-lg font-bold tracking-tight text-white flex items-center gap-2">
                 {title}
@@ -75,7 +75,7 @@ export const Modal = ({
           </div>
 
           {/* Scrollable Body */}
-          <div className="p-6 overflow-y-auto max-h-[calc(90vh-8rem)]">
+          <div className="p-6 overflow-y-auto max-h-[calc(90vh-8rem)] print:p-0 print:overflow-visible print:max-h-none">
             {children}
           </div>
         </div>

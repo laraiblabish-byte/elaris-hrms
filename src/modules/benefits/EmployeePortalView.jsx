@@ -577,7 +577,7 @@ export const EmployeePortalView = ({
             Role Benefits & Corporate Allowances ({policy?.role_name || `${tierKey} Tier`})
           </h3>
           <p className="text-xs text-[#676F9D]">
-            Corporate benefits and compensation privileges allocated specifically for this role tier
+            Grade Level – Specialist Tier refers to an employee's professional experience and seniority level within the organization. Corporate benefits and compensation privileges allocated specifically for this role tier.
           </p>
         </div>
 

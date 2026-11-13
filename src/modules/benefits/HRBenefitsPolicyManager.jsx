@@ -53,7 +53,7 @@ export const HRBenefitsPolicyManager = ({
             HR Role-Based Benefits & Leave Quota Policies
           </h2>
           <p className="text-xs text-[#676F9D] mt-0.5">
-            Configure tiered allowances for Senior, Junior, Mid-Level, and Executive personnel. Changes apply instantaneously.
+            Grade Level – Specialist Tier refers to an employee's professional experience and seniority level within the organization. Configure tiered allowances for Senior, Junior, Mid-Level, and Executive personnel.
           </p>
         </div>
 

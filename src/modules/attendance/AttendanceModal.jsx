@@ -5,7 +5,7 @@ import { Input } from '../../components/common/Input';
 import { Select } from '../../components/common/Select';
 import { Calendar, Clock, User, CheckCircle2, AlertCircle, ShieldAlert, Lock, UserCheck } from 'lucide-react';
 import { getEmployees } from '../../utils/dbHelpers';
-import { getEmployeeDisplayName } from '../../utils/formatters';
+import { getEmployeeDisplayName, normalizeDate, getTodayDateString, formatTime } from '../../utils/formatters';
 import { useAuth } from '../../context/AuthContext';
 
 export const AttendanceModal = ({
@@ -18,6 +18,7 @@ export const AttendanceModal = ({
   clearError,
   employees: passedEmployees = [],
   currentEmployee: passedCurrentEmployee,
+  existingRecords = [],
 }) => {
   const { currentEmployee: authEmployee, user } = useAuth();
 
@@ -34,11 +35,21 @@ export const AttendanceModal = ({
 
   const [formData, setFormData] = useState({
     employee_id: activeEmployee?.id || '',
-    attendance_date: new Date().toISOString().split('T')[0],
+    attendance_date: getTodayDateString(),
     status: 'Present',
     check_in: '09:00',
     check_out: '17:00',
   });
+
+  const targetEmpId = String(activeEmployee?.id || formData.employee_id || '');
+  const selectedDateNorm = normalizeDate(formData.attendance_date);
+  const isDuplicateForDate =
+    !record &&
+    existingRecords.some((r) => {
+      const rEmpId = String(r.employee_id || '');
+      const rDateNorm = normalizeDate(r.attendance_date || r.date);
+      return rEmpId === targetEmpId && rDateNorm === selectedDateNorm;
+    });
 
   useEffect(() => {
     if (passedEmployees && passedEmployees.length > 0) {
@@ -61,7 +72,7 @@ export const AttendanceModal = ({
     if (record) {
       setFormData({
         employee_id: empId,
-        attendance_date: record.attendance_date || new Date().toISOString().split('T')[0],
+        attendance_date: normalizeDate(record.attendance_date || record.date) || getTodayDateString(),
         status: record.status || 'Present',
         check_in: record.check_in || '',
         check_out: record.check_out || '',
@@ -69,7 +80,7 @@ export const AttendanceModal = ({
     } else {
       setFormData({
         employee_id: empId,
-        attendance_date: new Date().toISOString().split('T')[0],
+        attendance_date: getTodayDateString(),
         status: 'Present',
         check_in: '09:00',
         check_out: '17:00',
@@ -87,6 +98,8 @@ export const AttendanceModal = ({
     }
     if (!formData.attendance_date) {
       errors.attendance_date = 'Date is required';
+    } else if (isDuplicateForDate) {
+      errors.attendance_date = 'Attendance has already been marked for this date. Only one attendance record per day is permitted.';
     }
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
@@ -100,6 +113,8 @@ export const AttendanceModal = ({
     onSave({
       ...formData,
       employee_id: finalEmpId,
+      check_in: formatTime(formData.check_in),
+      check_out: formData.check_out ? formatTime(formData.check_out) : '',
     });
   };
 
@@ -202,21 +217,35 @@ export const AttendanceModal = ({
           />
         </div>
 
+        {isDuplicateForDate && (
+          <div className="rounded-xl bg-amber-50 border border-amber-300 p-3 text-xs text-amber-900 flex items-start gap-2.5 animate-in fade-in">
+            <AlertCircle className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold">Daily Attendance Rule Enforced</p>
+              <p className="mt-0.5 leading-relaxed">
+                Attendance for <strong>{formData.attendance_date}</strong> has already been marked for this employee. Each employee can only mark attendance once per day.
+              </p>
+            </div>
+          </div>
+        )}
+
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input
-            label="Check In Time"
+            label="Check In Time (12-Hour System)"
             type="time"
             icon={Clock}
             value={formData.check_in}
             onChange={(e) => setFormData({ ...formData, check_in: e.target.value })}
+            helperText={formData.check_in ? `12-Hour Time: ${formatTime(formData.check_in)}` : ''}
           />
 
           <Input
-            label="Check Out Time"
+            label="Check Out Time (12-Hour System)"
             type="time"
             icon={Clock}
             value={formData.check_out}
             onChange={(e) => setFormData({ ...formData, check_out: e.target.value })}
+            helperText={formData.check_out ? `12-Hour Time: ${formatTime(formData.check_out)}` : ''}
           />
         </div>
 
@@ -224,7 +253,7 @@ export const AttendanceModal = ({
           <Button variant="outline" onClick={onClose} disabled={loading}>
             Cancel
           </Button>
-          <Button type="submit" variant="accent" loading={loading} className="font-bold">
+          <Button type="submit" variant="accent" loading={loading} disabled={isDuplicateForDate} className="font-bold">
             {record ? 'Save Changes' : 'Log Attendance'}
           </Button>
         </div>
