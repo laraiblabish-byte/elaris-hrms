@@ -14,7 +14,6 @@ import {
   Award,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
-import { getEmployeeDisplayName } from '../../utils/formatters';
 
 export const navigationItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },

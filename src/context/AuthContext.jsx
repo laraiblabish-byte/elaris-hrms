@@ -103,12 +103,13 @@ export const AuthProvider = ({ children }) => {
 
   useEffect(() => {
     let mounted = true;
+    let subscription = null;
 
     // Get initial session
     const initAuth = async () => {
       try {
-        const { data: { session: initialSession }, error } = await supabase.auth.getSession();
-        if (error) console.error('Get session error:', error);
+        const sessionResult = await supabase?.auth?.getSession?.();
+        const initialSession = sessionResult?.data?.session || null;
 
         if (mounted) {
           setSession(initialSession);
@@ -127,21 +128,33 @@ export const AuthProvider = ({ children }) => {
     initAuth();
 
     // Subscribe to auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, newSession) => {
-      if (!mounted) return;
-      setSession(newSession);
-      setUser(newSession?.user || null);
-      if (newSession?.user) {
-        await fetchProfile(newSession.user);
-      } else {
-        setProfile(null);
-      }
-      setLoading(false);
-    });
+    try {
+      const authListener = supabase?.auth?.onAuthStateChange?.(async (event, newSession) => {
+        if (!mounted) return;
+        setSession(newSession);
+        setUser(newSession?.user || null);
+        if (newSession?.user) {
+          await fetchProfile(newSession.user);
+        } else {
+          setProfile(null);
+        }
+        setLoading(false);
+      });
+      subscription = authListener?.data?.subscription;
+    } catch (err) {
+      console.warn('Auth state change listener notice:', err);
+      if (mounted) setLoading(false);
+    }
 
     return () => {
       mounted = false;
-      subscription?.unsubscribe();
+      if (subscription?.unsubscribe) {
+        try {
+          subscription.unsubscribe();
+        } catch (e) {
+          console.warn('Error unsubscribing auth listener:', e);
+        }
+      }
     };
   }, []);
 

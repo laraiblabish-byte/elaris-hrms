@@ -7,14 +7,10 @@ import {
   Banknote,
   Plus,
   ArrowRight,
-  TrendingUp,
-  Clock,
   Sparkles,
   CheckCircle,
   XCircle,
   Award,
-  Lock,
-  Calendar,
 } from 'lucide-react';
 import { StatCard } from '../../components/common/StatCard';
 import { Badge } from '../../components/common/Badge';

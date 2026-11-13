@@ -13,6 +13,7 @@ import {
   Calendar,
   ArrowRight,
   TrendingUp,
+  Lock,
 } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
@@ -31,7 +32,6 @@ import {
 import { formatCurrency, formatDate, getEmployeeDisplayName } from '../../utils/formatters';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
-import { Lock } from 'lucide-react';
 
 export const PayrollManagement = ({ setActiveTab, onSelectPayslipPayroll }) => {
   const { role: userRole, isEmployee } = useAuth();

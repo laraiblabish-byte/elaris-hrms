@@ -31,7 +31,7 @@ import {
   deleteEmployee,
   getDepartments,
 } from '../../utils/dbHelpers';
-import { formatCurrency, formatDate, getEmployeeDisplayName } from '../../utils/formatters';
+import { formatCurrency, getEmployeeDisplayName } from '../../utils/formatters';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
 

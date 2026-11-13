@@ -14,6 +14,9 @@ import {
   Edit,
   LogIn,
   LogOut,
+  Lock,
+  UserCheck,
+  ShieldCheck,
 } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
@@ -31,7 +34,6 @@ import {
 import { formatDate, formatTime, getEmployeeDisplayName } from '../../utils/formatters';
 import { useToast } from '../../context/ToastContext';
 import { useAuth } from '../../context/AuthContext';
-import { Lock, UserCheck, ShieldCheck } from 'lucide-react';
 
 export const AttendanceManagement = () => {
   const { role: userRole, isHR, isDeptHead, isSuperAdmin, isEmployee, currentEmployee, user } = useAuth();
