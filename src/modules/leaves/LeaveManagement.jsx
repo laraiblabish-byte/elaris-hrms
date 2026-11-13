@@ -16,6 +16,7 @@ import {
   Building2,
   ArrowRight,
   Sparkles,
+  Award,
 } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
@@ -35,8 +36,10 @@ import {
 } from '../../utils/dbHelpers';
 import { formatDate, getEmployeeDisplayName } from '../../utils/formatters';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 
-export const LeaveManagement = () => {
+export const LeaveManagement = ({ setActiveTab }) => {
+  const { user, profile, role: userRole, isHR, isDeptHead, isSuperAdmin, currentEmployee } = useAuth();
   const [leaves, setLeaves] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -82,7 +85,26 @@ export const LeaveManagement = () => {
     try {
       setActionLoading(true);
       setModalError(null);
-      await createLeaveRequest(formData);
+
+      // Enforce: only the person's account can fill and submit their leave request
+      let effectiveEmpId = currentEmployee?.id || formData.employee_id;
+      if (!effectiveEmpId && user?.email) {
+        const found = employees.find(
+          (e) => (e.email || '').toLowerCase().trim() === user.email.toLowerCase().trim()
+        );
+        if (found) effectiveEmpId = found.id;
+      }
+      if (!effectiveEmpId) {
+        throw new Error('Could not identify your employee profile. You can only apply from your own verified employee account.');
+      }
+      if (effectiveEmpId && formData.employee_id && String(formData.employee_id) !== String(effectiveEmpId)) {
+        throw new Error('Permission Denied: You cannot submit leave requests for another account. Only the person account can fill the form.');
+      }
+
+      await createLeaveRequest({
+        ...formData,
+        employee_id: effectiveEmpId,
+      });
       showToast('Leave request submitted successfully (Stage 1: Dept Head Review)', 'success');
       setIsModalOpen(false);
       await loadData();
@@ -95,12 +117,43 @@ export const LeaveManagement = () => {
     }
   };
 
-  // Stage 1: Department Head Approval
+  // Determine if the current account is authorized as Department Head
+  // Head approval strictly on Department Head account
+  const isHeadAccount =
+    userRole === 'Department Head' ||
+    (userRole || '').toLowerCase().includes('head') ||
+    (currentEmployee && departments.some((d) => String(d.head_employee_id) === String(currentEmployee.id))) ||
+    (currentEmployee?.designation && currentEmployee.designation.toLowerCase().includes('head'));
+
+  // Determine if the current account is authorized as HR Management
+  // HR approval strictly on HR account
+  const isHRAccount =
+    userRole === 'HR Admin' ||
+    userRole === 'HR Manager' ||
+    userRole === 'Admin' ||
+    (userRole || '').toLowerCase().includes('hr') ||
+    ((userRole || '').toLowerCase().includes('admin') && !isHeadAccount);
+
+  // Check if current user can approve Stage 1 (Department Head Review)
+  const canApproveHead = (leave) => {
+    return isHeadAccount;
+  };
+
+  // Check if current user can approve Stage 2 (Final HR Approval)
+  const canApproveHR = () => {
+    return isHRAccount;
+  };
+
+  // Stage 1: Department Head Approval (head approval on head account)
   const handleDeptHeadApprove = async (id) => {
+    if (!isHeadAccount) {
+      showToast('Permission Denied: Head approval can only be performed on a Department Head account.', 'error');
+      return;
+    }
     try {
       setActionLoading(true);
       await approveLeaveByDeptHead(id);
-      showToast('Endorsed by Department Head! Moved to Stage 2 (Final HR Approval)', 'success');
+      showToast('Stage 1 Approved by Department Head! Forwarded to HR for Final Approval.', 'success');
       await loadData();
     } catch (err) {
       showToast(err.message || 'Failed to approve as Department Head', 'error');
@@ -109,12 +162,16 @@ export const LeaveManagement = () => {
     }
   };
 
-  // Stage 2: Final HR / Management Approval
+  // Stage 2: Final HR / Management Approval (hr approval on hr account)
   const handleFinalApprove = async (id) => {
+    if (!isHRAccount) {
+      showToast('Permission Denied: HR approval can only be performed on an HR account.', 'error');
+      return;
+    }
     try {
       setActionLoading(true);
       await approveLeaveFinal(id);
-      showToast('Final HR Approval Granted! Request is now Fully Approved', 'success');
+      showToast('Stage 2 Final HR Approval Granted! Request is now Fully Approved.', 'success');
       await loadData();
     } catch (err) {
       showToast(err.message || 'Failed to grant final approval', 'error');
@@ -125,6 +182,14 @@ export const LeaveManagement = () => {
 
   // Rejection by either approver
   const handleReject = async (id, roleName) => {
+    if (roleName === 'Dept Head' && !isHeadAccount) {
+      showToast('Permission Denied: Head rejection can only be performed on a Department Head account.', 'error');
+      return;
+    }
+    if (roleName === 'HR Admin' && !isHRAccount) {
+      showToast('Permission Denied: HR rejection can only be performed on an HR account.', 'error');
+      return;
+    }
     try {
       setActionLoading(true);
       await rejectLeave(id, roleName);
@@ -152,28 +217,42 @@ export const LeaveManagement = () => {
     }
   };
 
-  // Workflow counts
+  // Workflow counts (strictly isolated to employee's own requests if logged in as employee)
+  const isEmployeeRole = userRole === 'Employee' && !isSuperAdmin && !isHeadAccount && !isHRAccount;
+  const scopedLeaves = isEmployeeRole
+    ? leaves.filter((l) => {
+        const empId = currentEmployee?.id;
+        const userEmail = (user?.email || '').toLowerCase().trim();
+        const lEmpId = l.employee_id ? String(l.employee_id) : '';
+        const lEmail = (l.employees?.email || '').toLowerCase().trim();
+
+        if (empId && lEmpId === String(empId)) return true;
+        if (userEmail && lEmail === userEmail) return true;
+        return false;
+      })
+    : leaves;
+
   // Stage 1: Pending Dept Head Review (head_approved is false/null and status is Pending)
-  const stage1Leaves = leaves.filter(
+  const stage1Leaves = scopedLeaves.filter(
     (l) => l.status === 'Pending' && !l.head_approved
   );
 
   // Stage 2: Pending Final HR Approval (head_approved is true and final_approved is false and status is Pending)
   // Strictly respects rule: "Do not allow the next-level approver to see pending requests before Department Head approval."
-  const stage2Leaves = leaves.filter(
+  const stage2Leaves = scopedLeaves.filter(
     (l) => l.status === 'Pending' && Boolean(l.head_approved) && !l.final_approved
   );
 
   // Fully Approved: head_approved and final_approved are true, or status === 'Approved'
-  const fullyApprovedLeaves = leaves.filter(
+  const fullyApprovedLeaves = scopedLeaves.filter(
     (l) => l.status === 'Approved'
   );
 
   // Rejected
-  const rejectedLeaves = leaves.filter((l) => l.status === 'Rejected');
+  const rejectedLeaves = scopedLeaves.filter((l) => l.status === 'Rejected');
 
   // Filter list based on selected tab and filters
-  const filteredLeaves = leaves.filter((l) => {
+  const filteredLeaves = scopedLeaves.filter((l) => {
     const emp = l.employees || employees.find((e) => String(e.id) === String(l.employee_id));
     const empName = getEmployeeDisplayName(emp).toLowerCase();
     const empDept = (emp?.department || '').toLowerCase();
@@ -242,6 +321,70 @@ export const LeaveManagement = () => {
         </div>
       </div>
 
+      {/* Account Authority Status Banner */}
+      <div className="rounded-2xl p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 border shadow-xs transition-all bg-white border-gray-100">
+        <div className="flex items-center gap-3">
+          <div className={`h-10 w-10 rounded-xl flex items-center justify-center font-bold text-sm shrink-0 ${
+            isHeadAccount && !isHRAccount
+              ? 'bg-amber-100 text-amber-700'
+              : isHRAccount && !isHeadAccount
+              ? 'bg-blue-100 text-blue-700'
+              : 'bg-[#2D3250] text-[#FFB17A]'
+          }`}>
+            {isHeadAccount && !isHRAccount ? (
+              <UserCheck className="w-5 h-5" />
+            ) : (
+              <ShieldCheck className="w-5 h-5" />
+            )}
+          </div>
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#2D3250]">
+                Active Approval Authority:
+              </span>
+              <span className={`text-[11px] font-black px-2.5 py-0.5 rounded-full border ${
+                isHeadAccount && !isHRAccount
+                  ? 'bg-amber-50 text-amber-800 border-amber-300'
+                  : isHRAccount && !isHeadAccount
+                  ? 'bg-blue-50 text-blue-800 border-blue-300'
+                  : isSuperAdmin
+                  ? 'bg-purple-50 text-purple-800 border-purple-300'
+                  : 'bg-gray-100 text-gray-700 border-gray-200'
+              }`}>
+                {isHeadAccount && !isHRAccount
+                  ? 'Department Head Account'
+                  : isHRAccount && !isHeadAccount
+                  ? 'HR Administrator Account'
+                  : isSuperAdmin
+                  ? 'Super Administrator'
+                  : `${userRole} Account`}
+              </span>
+            </div>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {isHeadAccount && !isHRAccount
+                ? 'Authorized for Stage 1 (Department Head Approvals). Stage 2 is processed on HR accounts.'
+                : isHRAccount && !isHeadAccount
+                ? 'Authorized for Stage 2 (Final HR Approvals). Stage 1 must be endorsed by Department Heads.'
+                : isSuperAdmin
+                ? 'Executive authority for Stage 1 (Department Head) and Stage 2 (Final HR).'
+                : 'Standard employee account. Track status and submission history.'}
+            </p>
+          </div>
+        </div>
+
+        {setActiveTab && (
+          <Button
+            variant="outline"
+            size="sm"
+            icon={Award}
+            onClick={() => setActiveTab('benefits')}
+            className="text-xs font-bold shrink-0"
+          >
+            Benefits & Quotas
+          </Button>
+        )}
+      </div>
+
       {/* KPI Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
         <div
@@ -260,7 +403,7 @@ export const LeaveManagement = () => {
             {stage1Leaves.length}
           </div>
           <p className="text-[11px] text-amber-600 font-medium mt-0.5">
-            Pending Dept Head endorsement
+            Requires Dept Head Account
           </p>
         </div>
 
@@ -280,7 +423,7 @@ export const LeaveManagement = () => {
             {stage2Leaves.length}
           </div>
           <p className="text-[11px] text-[#424769] font-medium mt-0.5">
-            Dept Head approved &bull; Awaiting HR
+            Requires HR Account
           </p>
         </div>
 
@@ -592,63 +735,91 @@ export const LeaveManagement = () => {
                       {/* Approval Actions */}
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
-                          {/* Stage 1: Department Head Approval Button */}
+                          {/* Stage 1: Department Head Approval Button (Head approval on head account) */}
                           {leave.status === 'Pending' && !isHeadApproved && (
-                            <>
-                              <button
-                                onClick={() => handleDeptHeadApprove(leave.id)}
-                                disabled={actionLoading}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-[11px] shadow-xs transition-colors cursor-pointer"
-                                title="Department Head Approval (Stage 1)"
-                              >
-                                <UserCheck className="w-3.5 h-3.5" />
-                                Dept Head Approve
-                              </button>
-                              <button
-                                onClick={() => handleReject(leave.id, 'Dept Head')}
-                                disabled={actionLoading}
-                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 font-semibold text-[11px] transition-colors cursor-pointer"
-                                title="Reject Application"
-                              >
-                                <XCircle className="w-3.5 h-3.5" />
-                                Reject
-                              </button>
-                            </>
+                            canApproveHead(leave) ? (
+                              <>
+                                <button
+                                  onClick={() => handleDeptHeadApprove(leave.id)}
+                                  disabled={actionLoading}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-500 hover:bg-amber-600 text-white font-bold text-[11px] shadow-xs transition-colors cursor-pointer"
+                                  title="Department Head Approval (Stage 1)"
+                                >
+                                  <UserCheck className="w-3.5 h-3.5" />
+                                  Dept Head Approve
+                                </button>
+                                <button
+                                  onClick={() => handleReject(leave.id, 'Dept Head')}
+                                  disabled={actionLoading}
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 font-semibold text-[11px] transition-colors cursor-pointer"
+                                  title="Reject Application"
+                                >
+                                  <XCircle className="w-3.5 h-3.5" />
+                                  Reject
+                                </button>
+                              </>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 text-[10px] font-bold" title="Stage 1 requires Department Head account approval">
+                                <UserCheck className="w-3 h-3 text-amber-600" /> Awaiting Head Approval
+                              </span>
+                            )
                           )}
 
-                          {/* Stage 2: Final HR / Management Approval Button */}
+                          {/* Stage 2: Final HR / Management Approval Button (HR approval on hr account) */}
                           {/* Strictly visible ONLY after Stage 1 (isHeadApproved) has succeeded! */}
                           {leave.status === 'Pending' && isHeadApproved && !isFinalApproved && (
-                            <>
-                              <button
-                                onClick={() => handleFinalApprove(leave.id)}
-                                disabled={actionLoading}
-                                className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] shadow-xs transition-colors cursor-pointer"
-                                title="Final HR Approval (Stage 2 - Fully Approve)"
-                              >
-                                <ShieldCheck className="w-3.5 h-3.5" />
-                                Grant Final Approval
-                              </button>
-                              <button
-                                onClick={() => handleReject(leave.id, 'HR Admin')}
-                                disabled={actionLoading}
-                                className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 font-semibold text-[11px] transition-colors cursor-pointer"
-                                title="Reject Application"
-                              >
-                                <XCircle className="w-3.5 h-3.5" />
-                                Reject
-                              </button>
-                            </>
+                            canApproveHR() ? (
+                              <>
+                                <button
+                                  onClick={() => handleFinalApprove(leave.id)}
+                                  disabled={actionLoading}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[11px] shadow-xs transition-colors cursor-pointer"
+                                  title="Final HR Approval (Stage 2 - Fully Approve)"
+                                >
+                                  <ShieldCheck className="w-3.5 h-3.5" />
+                                  Grant Final Approval
+                                </button>
+                                <button
+                                  onClick={() => handleReject(leave.id, 'HR Admin')}
+                                  disabled={actionLoading}
+                                  className="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-rose-50 text-rose-700 hover:bg-rose-100 font-semibold text-[11px] transition-colors cursor-pointer"
+                                  title="Reject Application"
+                                >
+                                  <XCircle className="w-3.5 h-3.5" />
+                                  Reject
+                                </button>
+                              </>
+                            ) : (
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-blue-50 text-blue-800 border border-blue-200 text-[10px] font-bold" title="Stage 2 requires HR Administrator account approval">
+                                <ShieldCheck className="w-3 h-3 text-blue-600" /> Awaiting HR Approval
+                              </span>
+                            )
                           )}
 
-                          {/* Delete Button */}
-                          <button
-                            onClick={() => setDeleteId(leave.id)}
-                            className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
-                            title="Delete Request"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {/* Fully Approved Status Badge */}
+                          {leave.status === 'Approved' && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200 text-[10px] font-bold">
+                              <CheckCircle2 className="w-3 h-3 text-emerald-600" /> Approved
+                            </span>
+                          )}
+
+                          {/* Rejected Status Badge */}
+                          {leave.status === 'Rejected' && (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold">
+                              <XCircle className="w-3 h-3 text-rose-600" /> Rejected
+                            </span>
+                          )}
+
+                          {/* Delete Button (HR Admin or Super Admin only) */}
+                          {(isHRAccount || isSuperAdmin) && (
+                            <button
+                              onClick={() => setDeleteId(leave.id)}
+                              className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                              title="Delete Request"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -672,6 +843,7 @@ export const LeaveManagement = () => {
         error={modalError}
         clearError={() => setModalError(null)}
         employees={employees}
+        currentEmployee={currentEmployee}
       />
 
       {/* Delete Confirmation */}

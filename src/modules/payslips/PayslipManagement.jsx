@@ -28,8 +28,13 @@ import {
 } from '../../utils/dbHelpers';
 import { formatCurrency, formatDate, getEmployeeDisplayName } from '../../utils/formatters';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
+import { Lock } from 'lucide-react';
 
 export const PayslipManagement = ({ selectedPayrollForPayslip, onClearSelectedPayroll }) => {
+  const { role: userRole, isEmployee, currentEmployee, user } = useAuth();
+  const isEmployeeRole = Boolean(isEmployee || userRole === 'Employee');
+
   const [payslips, setPayslips] = useState([]);
   const [payrolls, setPayrolls] = useState([]);
   const [employees, setEmployees] = useState([]);
@@ -80,6 +85,11 @@ export const PayslipManagement = ({ selectedPayrollForPayslip, onClearSelectedPa
 
   const handleDeletePayslip = async () => {
     if (!deleteItem) return;
+    if (isEmployeeRole) {
+      showToast('Permission Denied: Standard employees cannot delete payslip records.', 'error');
+      setDeleteItem(null);
+      return;
+    }
     try {
       setActionLoading(true);
       const slipId = deleteItem.slip?.id || (String(deleteItem.id).startsWith('slip-') ? deleteItem.id : null);
@@ -151,6 +161,14 @@ export const PayslipManagement = ({ selectedPayrollForPayslip, onClearSelectedPa
   });
 
   const filteredItems = combinedItems.filter((item) => {
+    // Standard employees can only see their personal payslip not see other
+    if (isEmployeeRole && currentEmployee) {
+      const isSelf =
+        String(item.employee?.id) === String(currentEmployee.id) ||
+        (item.employee?.email && user?.email && item.employee.email.toLowerCase().trim() === user.email.toLowerCase().trim());
+      if (!isSelf) return false;
+    }
+
     const empName = getEmployeeDisplayName(item.employee).toLowerCase();
     const matchesSearch =
       empName.includes(searchTerm.toLowerCase()) ||
@@ -170,7 +188,9 @@ export const PayslipManagement = ({ selectedPayrollForPayslip, onClearSelectedPa
             Payslip Management
           </h1>
           <p className="text-xs text-[#676F9D] mt-0.5">
-            View, generate, print, and export official salary vouchers and PDF payslips
+            {isEmployeeRole
+              ? 'View, download, and print your personal salary vouchers and tax receipts'
+              : 'View, generate, print, and export official salary vouchers and PDF payslips'}
           </p>
         </div>
 
@@ -186,6 +206,21 @@ export const PayslipManagement = ({ selectedPayrollForPayslip, onClearSelectedPa
           </Button>
         </div>
       </div>
+
+      {/* Scope Banner for Standard Employees */}
+      {isEmployeeRole && (
+        <div className="rounded-2xl bg-blue-50/70 border border-blue-200/80 p-3.5 text-xs text-blue-900 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <Lock className="w-4 h-4 text-blue-600 shrink-0" />
+            <span>
+              <strong>Personal Payslips Portal:</strong> You can only inspect and download your authenticated salary vouchers.
+            </span>
+          </div>
+          <span className="text-[11px] font-bold text-blue-800 bg-blue-100/80 px-2 py-0.5 rounded-full shrink-0">
+            Personal Mode
+          </span>
+        </div>
+      )}
 
       {/* Search Bar */}
       <div className="rounded-2xl bg-white p-4 shadow-sm border border-gray-100 flex items-center justify-between gap-4">
@@ -285,13 +320,15 @@ export const PayslipManagement = ({ selectedPayrollForPayslip, onClearSelectedPa
                           >
                             View / Print
                           </Button>
-                          <button
-                            onClick={() => setDeleteItem(item)}
-                            className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                            title="Delete Payslip Entry"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {!isEmployeeRole && (
+                            <button
+                              onClick={() => setDeleteItem(item)}
+                              className="p-1.5 text-gray-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                              title="Delete Payslip Entry"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          )}
                         </div>
                       </td>
                     </tr>

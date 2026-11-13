@@ -3,9 +3,10 @@ import { Modal } from '../../components/common/Modal';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { Select } from '../../components/common/Select';
-import { Calendar, Clock, User, CheckCircle2, AlertCircle, ShieldAlert } from 'lucide-react';
+import { Calendar, Clock, User, CheckCircle2, AlertCircle, ShieldAlert, Lock, UserCheck } from 'lucide-react';
 import { getEmployees } from '../../utils/dbHelpers';
 import { getEmployeeDisplayName } from '../../utils/formatters';
+import { useAuth } from '../../context/AuthContext';
 
 export const AttendanceModal = ({
   isOpen,
@@ -16,17 +17,28 @@ export const AttendanceModal = ({
   error,
   clearError,
   employees: passedEmployees = [],
+  currentEmployee: passedCurrentEmployee,
 }) => {
+  const { currentEmployee: authEmployee, user } = useAuth();
+
+  const [employees, setEmployees] = useState(passedEmployees || []);
+  const [fieldErrors, setFieldErrors] = useState({});
+
+  // Resolve the active logged-in employee record (all accounts strictly fill for themselves)
+  const activeEmployee =
+    passedCurrentEmployee ||
+    authEmployee ||
+    employees.find(
+      (e) => (e.email || '').toLowerCase().trim() === (user?.email || '').toLowerCase().trim()
+    );
+
   const [formData, setFormData] = useState({
-    employee_id: '',
+    employee_id: activeEmployee?.id || '',
     attendance_date: new Date().toISOString().split('T')[0],
     status: 'Present',
     check_in: '09:00',
     check_out: '17:00',
   });
-
-  const [employees, setEmployees] = useState(passedEmployees || []);
-  const [fieldErrors, setFieldErrors] = useState({});
 
   useEffect(() => {
     if (passedEmployees && passedEmployees.length > 0) {
@@ -45,9 +57,10 @@ export const AttendanceModal = ({
   }, [isOpen, passedEmployees]);
 
   useEffect(() => {
+    const empId = record?.employee_id ? String(record.employee_id) : (activeEmployee?.id || '');
     if (record) {
       setFormData({
-        employee_id: record.employee_id ? String(record.employee_id) : '',
+        employee_id: empId,
         attendance_date: record.attendance_date || new Date().toISOString().split('T')[0],
         status: record.status || 'Present',
         check_in: record.check_in || '',
@@ -55,7 +68,7 @@ export const AttendanceModal = ({
       });
     } else {
       setFormData({
-        employee_id: '',
+        employee_id: empId,
         attendance_date: new Date().toISOString().split('T')[0],
         status: 'Present',
         check_in: '09:00',
@@ -64,12 +77,13 @@ export const AttendanceModal = ({
     }
     setFieldErrors({});
     if (clearError) clearError();
-  }, [record, isOpen]);
+  }, [record, isOpen, activeEmployee]);
 
   const validate = () => {
     const errors = {};
-    if (!formData.employee_id) {
-      errors.employee_id = 'Please select an employee';
+    const empId = activeEmployee?.id || formData.employee_id;
+    if (!empId) {
+      errors.employee_id = 'No verified employee profile found for your account. Please log in with a valid account.';
     }
     if (!formData.attendance_date) {
       errors.attendance_date = 'Date is required';
@@ -82,15 +96,19 @@ export const AttendanceModal = ({
     e.preventDefault();
     if (clearError) clearError();
     if (!validate()) return;
-    onSave(formData);
+    const finalEmpId = activeEmployee?.id || formData.employee_id;
+    onSave({
+      ...formData,
+      employee_id: finalEmpId,
+    });
   };
 
   return (
     <Modal
       isOpen={isOpen}
       onClose={onClose}
-      title={record ? 'Edit Attendance Log' : 'Log Staff Attendance'}
-      subtitle="Record presence, check-in, and check-out timestamps in database"
+      title={record ? 'Edit Personal Attendance' : 'Log Personal Attendance'}
+      subtitle="Personal attendance recording is strictly bound to your authenticated account"
       size="md"
       showClose={!loading}
     >
@@ -106,24 +124,55 @@ export const AttendanceModal = ({
           </div>
         )}
 
-        <Select
-          label="Select Employee"
-          value={formData.employee_id}
-          onChange={(e) => {
-            setFormData({ ...formData, employee_id: e.target.value });
-            if (fieldErrors.employee_id) setFieldErrors({ ...fieldErrors, employee_id: '' });
-          }}
-          error={fieldErrors.employee_id}
-          required
-          disabled={!!record}
-          placeholder="Choose staff member..."
-        >
-          {employees.map((emp) => (
-            <option key={emp.id} value={emp.id}>
-              {getEmployeeDisplayName(emp)} ({emp.designation || emp.department || 'Staff'})
-            </option>
-          ))}
-        </Select>
+        {/* Locked Personal Applicant Account Card (All accounts only fill for themselves) */}
+        <div>
+          <label className="block text-xs font-semibold uppercase tracking-wider text-[#424769] mb-1.5 flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5 text-[#FFB17A]" />
+              Account Holder
+            </span>
+            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+              <Lock className="w-2.5 h-2.5" /> Personal Form Only
+            </span>
+          </label>
+
+          {activeEmployee ? (
+            <div className="rounded-xl border border-gray-200 bg-gray-50/80 p-3.5 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="h-10 w-10 rounded-xl bg-[#2D3250] text-[#FFB17A] flex items-center justify-center font-bold text-base shadow-xs shrink-0">
+                  {(activeEmployee.full_name || activeEmployee.name || user?.email || 'U').charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-bold text-[#2D3250] truncate">
+                      {getEmployeeDisplayName(activeEmployee)}
+                    </p>
+                    <span className="text-[10px] font-semibold bg-white border border-gray-200 px-1.5 py-0.5 rounded text-gray-600">
+                      {activeEmployee.role_tier || 'Mid-Level'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 truncate mt-0.5">
+                    {activeEmployee.designation || 'Staff'} &bull; {activeEmployee.department || 'General'}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                  <UserCheck className="w-3.5 h-3.5" /> Authenticated
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+              <span>Identifying employee profile for your account ({user?.email || 'current user'})...</span>
+            </div>
+          )}
+
+          {fieldErrors.employee_id && (
+            <p className="mt-1 text-xs text-rose-500 font-semibold">{fieldErrors.employee_id}</p>
+          )}
+        </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <Input

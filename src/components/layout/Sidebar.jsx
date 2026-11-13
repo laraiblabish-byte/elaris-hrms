@@ -11,12 +11,14 @@ import {
   LogOut,
   X,
   Sparkles,
+  Award,
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { getEmployeeDisplayName } from '../../utils/formatters';
 
 export const navigationItems = [
   { id: 'dashboard', label: 'Dashboard', icon: LayoutDashboard },
+  { id: 'benefits', label: 'Benefits & Portal', icon: Award },
   { id: 'employees', label: 'Employees', icon: Users },
   { id: 'departments', label: 'Departments', icon: Building2 },
   { id: 'attendance', label: 'Attendance', icon: CalendarCheck },
@@ -27,15 +29,24 @@ export const navigationItems = [
 ];
 
 export const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen, onLogoutClick }) => {
-  const { user, profile } = useAuth();
+  const { user, profile, isHR, isEmployee, role: userRole } = useAuth();
 
   const handleSelectTab = (tabId) => {
     setActiveTab(tabId);
     if (setIsOpen) setIsOpen(false);
   };
 
-  const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'Admin';
-  const role = profile?.role || user?.user_metadata?.role || 'HR Specialist';
+  const displayName = profile?.full_name || user?.user_metadata?.full_name || user?.email?.split('@')[0] || 'User';
+  const displayRole = userRole || profile?.role || user?.user_metadata?.role || (isHR ? 'HR Specialist' : 'Employee');
+
+  const filteredNavItems = navigationItems.filter((item) => {
+    if (isEmployee) {
+      if (item.id === 'payroll') {
+        return false;
+      }
+    }
+    return true;
+  });
 
   return (
     <>
@@ -81,7 +92,7 @@ export const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen, onLogoutCl
           <p className="px-3 pb-2 text-[10px] font-bold uppercase tracking-wider text-[#676F9D]">
             Main Menu
           </p>
-          {navigationItems.map((item) => {
+          {filteredNavItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
             return (
@@ -122,7 +133,7 @@ export const Sidebar = ({ activeTab, setActiveTab, isOpen, setIsOpen, onLogoutCl
                 {displayName}
               </p>
               <p className="truncate text-xs text-[#676F9D]">
-                {role}
+                {displayRole}
               </p>
             </div>
           </div>

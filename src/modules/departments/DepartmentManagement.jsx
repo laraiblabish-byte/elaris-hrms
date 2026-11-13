@@ -28,8 +28,14 @@ import {
 } from '../../utils/dbHelpers';
 import { getEmployeeDisplayName } from '../../utils/formatters';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
+import { Lock } from 'lucide-react';
 
 export const DepartmentManagement = () => {
+  const { role: userRole, isEmployee } = useAuth();
+  const isEmployeeRole = Boolean(isEmployee || userRole === 'Employee');
+  const canAddDepartment = !isEmployeeRole;
+
   const [departments, setDepartments] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -68,6 +74,15 @@ export const DepartmentManagement = () => {
     try {
       setActionLoading(true);
       setModalError(null);
+
+      // Standard employee accounts cannot add or edit departments
+      if (!selectedDept && !canAddDepartment) {
+        throw new Error('Permission Denied: Standard employee accounts cannot add departments. Department Heads and HR departments are authorized.');
+      }
+      if (selectedDept && !canAddDepartment) {
+        throw new Error('Permission Denied: Standard employee accounts cannot modify departments.');
+      }
+
       if (selectedDept) {
         await updateDepartment(selectedDept.id, formData);
         showToast('Department updated successfully!', 'success');
@@ -183,19 +198,25 @@ export const DepartmentManagement = () => {
             Refresh
           </Button>
 
-          <Button
-            variant="accent"
-            size="md"
-            icon={Plus}
-            onClick={() => {
-              setModalError(null);
-              setSelectedDept(null);
-              setIsModalOpen(true);
-            }}
-            className="font-bold shadow-md"
-          >
-            Add Department
-          </Button>
+          {canAddDepartment ? (
+            <Button
+              variant="accent"
+              size="md"
+              icon={Plus}
+              onClick={() => {
+                setModalError(null);
+                setSelectedDept(null);
+                setIsModalOpen(true);
+              }}
+              className="font-bold shadow-md cursor-pointer"
+            >
+              Add Department
+            </Button>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-gray-50 border border-gray-200 text-xs font-bold text-gray-600">
+              <Lock className="w-3.5 h-3.5 text-gray-500" /> Read-Only Departments
+            </span>
+          )}
         </div>
       </div>
 
@@ -264,28 +285,30 @@ export const DepartmentManagement = () => {
                     <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#2D3250] text-[#FFB17A] shadow-xs">
                       <Building2 className="h-6 w-6" />
                     </div>
-                    <div className="flex items-center gap-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setModalError(null);
-                          setSelectedDept(dept);
-                          setIsModalOpen(true);
-                        }}
-                        className="p-1.5 text-[#676F9D] hover:text-[#2D3250] hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
-                        title="Edit Department & Head"
-                      >
-                        <Edit className="w-4 h-4" />
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => setDeleteDept(dept)}
-                        className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                        title="Delete Department"
-                      >
-                        <Trash2 className="w-4 h-4" />
-                      </button>
-                    </div>
+                    {canAddDepartment && (
+                      <div className="flex items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setModalError(null);
+                            setSelectedDept(dept);
+                            setIsModalOpen(true);
+                          }}
+                          className="p-1.5 text-[#676F9D] hover:text-[#2D3250] hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                          title="Edit Department & Head"
+                        >
+                          <Edit className="w-4 h-4" />
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setDeleteDept(dept)}
+                          className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                          title="Delete Department"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                   <h3 className="text-lg font-bold text-[#2D3250] group-hover:text-[#424769] transition-colors">
@@ -308,7 +331,7 @@ export const DepartmentManagement = () => {
                           <span className="font-bold text-[#2D3250] truncate block">
                             {getEmployeeDisplayName(headInfo)}
                           </span>
-                        ) : (
+                        ) : canAddDepartment ? (
                           <button
                             type="button"
                             onClick={() => {
@@ -320,6 +343,10 @@ export const DepartmentManagement = () => {
                           >
                             + Assign Department Head
                           </button>
+                        ) : (
+                          <span className="text-gray-400 font-medium text-[11px]">
+                            Not Assigned
+                          </span>
                         )}
                       </div>
                     </div>

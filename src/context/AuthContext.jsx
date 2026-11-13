@@ -1,18 +1,60 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { supabase } from '../supabaseClient';
+import { getEmployees, createEmployee } from '../utils/dbHelpers';
 
 const AuthContext = createContext(null);
 
 export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [currentEmployee, setCurrentEmployee] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+
+  // Match or create employee record for current user
+  const fetchEmployee = async (currentUser, prof) => {
+    if (!currentUser) {
+      setCurrentEmployee(null);
+      return null;
+    }
+
+    try {
+      const email = (currentUser.email || '').toLowerCase().trim();
+      const emps = await getEmployees();
+      let match = emps.find((e) => (e.email || '').toLowerCase().trim() === email);
+
+      if (!match) {
+        // If no employee profile exists with this email, create one
+        const empName = prof?.full_name || currentUser.user_metadata?.full_name || email.split('@')[0];
+        const roleName = prof?.role || currentUser.user_metadata?.role || 'Employee';
+        const isUserHR = ['HR Admin', 'HR Manager', 'Admin'].includes(roleName);
+        const created = await createEmployee({
+          full_name: empName,
+          name: empName,
+          email: email,
+          department: isUserHR ? 'HR' : 'Software Development',
+          designation: isUserHR ? 'HR Specialist' : 'Staff Engineer',
+          role_tier: 'Mid-Level',
+          salary: isUserHR ? 120000 : 90000,
+        });
+        if (created && created[0]) {
+          match = created[0];
+        }
+      }
+
+      setCurrentEmployee(match || null);
+      return match;
+    } catch (err) {
+      console.warn('Error fetching employee record for user:', err);
+      return null;
+    }
+  };
 
   // Fetch or create profile for user
   const fetchProfile = async (currentUser) => {
     if (!currentUser) {
       setProfile(null);
+      setCurrentEmployee(null);
       return null;
     }
 
@@ -27,28 +69,34 @@ export const AuthProvider = ({ children }) => {
         console.warn('Profile fetch warning:', error.message);
       }
 
+      let resProfile = null;
       if (data) {
         setProfile(data);
-        return data;
+        resProfile = data;
       } else {
         // Fallback default profile using auth user metadata
         const fallbackProfile = {
           id: currentUser.id,
           full_name: currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || 'User',
-          role: currentUser.user_metadata?.role || 'HR Admin',
+          role: currentUser.user_metadata?.role || 'Employee',
           created_at: currentUser.created_at,
         };
         setProfile(fallbackProfile);
-        return fallbackProfile;
+        resProfile = fallbackProfile;
       }
+
+      // Concurrently fetch linked employee record
+      await fetchEmployee(currentUser, resProfile);
+      return resProfile;
     } catch (err) {
       console.warn('Profile retrieval error:', err);
       const fallback = {
         id: currentUser.id,
         full_name: currentUser.user_metadata?.full_name || currentUser.email?.split('@')[0] || 'User',
-        role: currentUser.user_metadata?.role || 'HR Admin',
+        role: currentUser.user_metadata?.role || 'Employee',
       };
       setProfile(fallback);
+      await fetchEmployee(currentUser, fallback);
       return fallback;
     }
   };
@@ -203,11 +251,23 @@ export const AuthProvider = ({ children }) => {
     if (error) throw error;
   };
 
+  const userRole = profile?.role || user?.user_metadata?.role || 'HR Admin';
+  const isSuperAdmin = userRole === 'Admin';
+  const isHR = isSuperAdmin || ['HR Admin', 'HR Manager'].includes(userRole) || userRole.toLowerCase().includes('admin') || userRole.toLowerCase().includes('hr');
+  const isDeptHead = isSuperAdmin || userRole === 'Department Head' || userRole.toLowerCase().includes('head');
+  const isEmployee = userRole === 'Employee';
+
   return (
     <AuthContext.Provider
       value={{
         user,
         profile,
+        currentEmployee,
+        role: userRole,
+        isHR,
+        isDeptHead,
+        isEmployee,
+        isSuperAdmin,
         session,
         loading,
         login,
@@ -216,6 +276,7 @@ export const AuthProvider = ({ children }) => {
         updateProfile,
         changePassword,
         refreshProfile: () => fetchProfile(user),
+        refreshEmployee: () => fetchEmployee(user, profile),
       }}
     >
       {children}

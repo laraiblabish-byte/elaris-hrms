@@ -23,12 +23,207 @@ const STORAGE_DELETED_PAYROLL = 'elaris_deleted_payroll';
 const STORAGE_CUSTOM_PAYSLIPS = 'elaris_custom_payslips';
 const STORAGE_DELETED_PAYSLIPS = 'elaris_deleted_payslips';
 
-// 4 default sample staff members so unseeded or fresh databases immediately have directory records
+const STORAGE_CUSTOM_ROLE_BENEFITS = 'elaris_custom_role_benefits';
+
+// Predefined Corporate Role Benefits & Policies
+export const DEFAULT_ROLE_BENEFITS = [
+  {
+    id: 1,
+    role_key: 'Executive',
+    role_name: 'Executive & Leadership Tier',
+    annual_leaves: 30,
+    sick_leaves: 15,
+    casual_leaves: 10,
+    emergency_leaves: 5,
+    health_insurance: '$100,000 Global Premium Health Coverage (Full Employee, Spouse, Children & Parents Covered with 100% Inpatient/Outpatient/Dental/Vision)',
+    wellness_stipend: '$150 / month ($1,800/yr) Premium Gym, Spa & Mental Wellness Allowance',
+    learning_budget: '$3,000 / year Executive Leadership Coaching, Global Conferences & Certifications',
+    remote_work_policy: '100% Remote / Hybrid Flexibility — Work from anywhere in the world',
+    bonus_percentage: '25% - 35% of Annual Salary Executive Performance Bonus',
+    travel_allowance: 'Executive Vehicle, Fuel Subsidy & Fully Reimbursed Business Travel',
+    equipment_stipend: 'MacBook Pro M3 Max / High-End Workstation + Dual 4K Displays ($3,500 budget)',
+    retirement_match: '10% Company 401(k) / Provident Fund Matching',
+    additional_perks: [
+      'ESOP Stock Options & Equity Grants',
+      'First-Class Travel Lounge Access',
+      'Annual VIP Full-Body Executive Health Checkup',
+      'Unlimited Technical & Business Book Stipend',
+      'Personal Executive Assistant Support',
+      'Flexible Sabbatical Leave Eligibility',
+    ],
+    description: 'Top-tier comprehensive benefit suite for C-Suite, Vice Presidents, Directors, and Department Heads.',
+  },
+  {
+    id: 2,
+    role_key: 'Senior',
+    role_name: 'Senior Level Tier',
+    annual_leaves: 25,
+    sick_leaves: 12,
+    casual_leaves: 8,
+    emergency_leaves: 4,
+    health_insurance: '$50,000 Comprehensive Health Coverage (Employee + Immediate Family Covered, 90% Inpatient/Outpatient + Dental & Optical)',
+    wellness_stipend: '$100 / month ($1,200/yr) Gym, Sports & Wellness Reimbursement',
+    learning_budget: '$1,800 / year Professional Certifications, Courses (AWS, GCP, PMP) & Tech Summits',
+    remote_work_policy: 'Up to 12 WFH Days / Month (Flexible Hybrid Schedule)',
+    bonus_percentage: '15% - 20% of Annual Salary Performance Bonus',
+    travel_allowance: '$250 / month Commute, Fuel & Client Meeting Travel Allowance',
+    equipment_stipend: 'MacBook Pro M3 / Dell XPS 15 + 27-inch 4K Monitor ($2,200 hardware refresh every 2 years)',
+    retirement_match: '7% Company Provident Fund / 401(k) Matching',
+    additional_perks: [
+      'Annual Ergonomic Home-Office Setup Stipend ($500)',
+      'Tech Conference Sponsorship',
+      'Annual Preventive Health Screening',
+      'Priority Project Leadership & Tech Mentorship',
+      'Paid Industry Certification Exam Fees',
+    ],
+    description: 'Premium benefits package for Senior Engineers, Tech Leads, Senior Designers, and Team Managers.',
+  },
+  {
+    id: 3,
+    role_key: 'Mid-Level',
+    role_name: 'Mid-Level Specialist Tier',
+    annual_leaves: 20,
+    sick_leaves: 10,
+    casual_leaves: 6,
+    emergency_leaves: 3,
+    health_insurance: '$25,000 Standard Health Insurance (Employee + Spouse Covered, 80% Inpatient/Outpatient)',
+    wellness_stipend: '$60 / month ($720/yr) Fitness Club & Wellness Allowance',
+    learning_budget: '$1,000 / year Online Courses & Skill Development (Coursera, Udemy, O’Reilly)',
+    remote_work_policy: 'Up to 6 WFH Days / Month (Standard Hybrid Schedule)',
+    bonus_percentage: '10% - 12% Annual Target Performance Bonus',
+    travel_allowance: '$150 / month Public Transit & Commute Subsidy',
+    equipment_stipend: 'MacBook Air M3 / Lenovo ThinkPad Professional ($1,500 standard setup)',
+    retirement_match: '5% Company Provident Fund / 401(k) Matching',
+    additional_perks: [
+      'High-Speed Internet Monthly Reimbursement',
+      'Team Lunch & Learning Stipends',
+      'Annual Preventive Health Checkup',
+      'Flexible Core Working Hours',
+    ],
+    description: 'Standard balanced benefits package for Software Engineers, UI/UX Designers, QA Specialists, and HR Officers.',
+  },
+  {
+    id: 4,
+    role_key: 'Junior',
+    role_name: 'Junior & Entry-Level Tier',
+    annual_leaves: 15,
+    sick_leaves: 8,
+    casual_leaves: 4,
+    emergency_leaves: 2,
+    health_insurance: '$12,000 Essential Hospitalization & Basic Outpatient Health Insurance (Employee Covered)',
+    wellness_stipend: '$35 / month ($420/yr) Gym & Fitness Pass Discount',
+    learning_budget: '$500 / year Learning Subscription & Technical Bootcamps',
+    remote_work_policy: 'Up to 2 WFH Days / Month (Focus on in-office mentorship & peer pairing)',
+    bonus_percentage: '5% - 7% Annual Performance & Learning Milestone Bonus',
+    travel_allowance: '$80 / month Shared Transit & Commute Pass',
+    equipment_stipend: 'Company-issued Standard Laptop (Dell Latitude / MacBook Air 13")',
+    retirement_match: '3% Company Provident Fund / 401(k) Matching',
+    additional_perks: [
+      'Dedicated Senior Mentor Pairing',
+      'Unlimited Premium Coffee & Snack Bar',
+      'Annual Company Retreat & Sports Day',
+      'Career Growth Acceleration Roadmap',
+    ],
+    description: 'Growth-focused baseline package designed for Junior Engineers, Associates, Interns, and Trainees.',
+  },
+];
+
+// Default sample staff members covering all tiers: Executive, Senior, Mid-Level, Junior
 export const DEFAULT_SAMPLE_EMPLOYEES = [
-  { id: 1, full_name: 'Ahmed Khan', name: 'Ahmed Khan', email: 'ahmed.khan@elaris.com', phone: '+92 300 1234567', department: 'Software Development', designation: 'Senior Software Engineer', salary: 180000 },
-  { id: 2, full_name: 'Fatima Ali', name: 'Fatima Ali', email: 'fatima.ali@elaris.com', phone: '+92 321 7654321', department: 'HR', designation: 'HR Manager', salary: 150000 },
-  { id: 3, full_name: 'Zainab Tariq', name: 'Zainab Tariq', email: 'zainab.tariq@elaris.com', phone: '+92 333 9876543', department: 'UI/UX Design', designation: 'Senior UI/UX Designer', salary: 140000 },
-  { id: 4, full_name: 'Bilal Hassan', name: 'Bilal Hassan', email: 'bilal.hassan@elaris.com', phone: '+92 345 5432109', department: 'Quality Assurance', designation: 'QA Lead', salary: 130000 },
+  { id: 1, full_name: 'Ahmed Khan', name: 'Ahmed Khan', email: 'ahmed.khan@elaris.com', phone: '+92 300 1234567', department: 'Software Development', designation: 'Senior Software Engineer', role_tier: 'Senior', salary: 180000 },
+  { id: 2, full_name: 'Fatima Ali', name: 'Fatima Ali', email: 'fatima.ali@elaris.com', phone: '+92 321 7654321', department: 'HR', designation: 'HR Manager', role_tier: 'Senior', salary: 150000 },
+  { id: 3, full_name: 'Zainab Tariq', name: 'Zainab Tariq', email: 'zainab.tariq@elaris.com', phone: '+92 333 9876543', department: 'UI/UX Design', designation: 'Senior UI/UX Designer', role_tier: 'Senior', salary: 140000 },
+  { id: 4, full_name: 'Bilal Hassan', name: 'Bilal Hassan', email: 'bilal.hassan@elaris.com', phone: '+92 345 5432109', department: 'Quality Assurance', designation: 'QA Lead', role_tier: 'Senior', salary: 130000 },
+  { id: 5, full_name: 'Hamza Malik', name: 'Hamza Malik', email: 'hamza.malik@elaris.com', phone: '+92 301 2345678', department: 'Software Development', designation: 'Software Engineer', role_tier: 'Mid-Level', salary: 95000 },
+  { id: 6, full_name: 'Ayesha Noor', name: 'Ayesha Noor', email: 'ayesha.noor@elaris.com', phone: '+92 312 9876543', department: 'Software Development', designation: 'Junior Software Engineer', role_tier: 'Junior', salary: 55000 },
+  { id: 7, full_name: 'Dr. Tariq Mehmood', name: 'Dr. Tariq Mehmood', email: 'tariq.mehmood@elaris.com', phone: '+92 322 1122334', department: 'Software Development', designation: 'Director of Software Engineering', role_tier: 'Executive', salary: 320000 },
+];
+
+export const DEFAULT_SAMPLE_LEAVES = [
+  {
+    id: 101,
+    employee_id: 1,
+    leave_type: 'Annual Leave',
+    start_date: '2026-10-12',
+    end_date: '2026-10-15',
+    reason: 'Family vacation in northern valleys',
+    status: 'Approved',
+    head_approved: true,
+    final_approved: true,
+    created_at: '2026-10-01T10:00:00Z',
+  },
+  {
+    id: 102,
+    employee_id: 1,
+    leave_type: 'Sick Leave',
+    start_date: '2026-09-04',
+    end_date: '2026-09-05',
+    reason: 'Seasonal viral flu and recovery',
+    status: 'Approved',
+    head_approved: true,
+    final_approved: true,
+    created_at: '2026-09-03T08:30:00Z',
+  },
+  {
+    id: 103,
+    employee_id: 1,
+    leave_type: 'Annual Leave',
+    start_date: '2026-11-20',
+    end_date: '2026-11-22',
+    reason: 'Attending cousin wedding in Lahore',
+    status: 'Pending',
+    head_approved: true,
+    final_approved: false,
+    created_at: '2026-11-05T14:20:00Z',
+  },
+  {
+    id: 104,
+    employee_id: 1,
+    leave_type: 'Casual Leave',
+    start_date: '2026-08-10',
+    end_date: '2026-08-11',
+    reason: 'Personal urgent errand during quarterly deployment',
+    status: 'Rejected',
+    head_approved: false,
+    final_approved: false,
+    created_at: '2026-08-08T09:15:00Z',
+  },
+  {
+    id: 105,
+    employee_id: 6,
+    leave_type: 'Sick Leave',
+    start_date: '2026-10-20',
+    end_date: '2026-10-21',
+    reason: 'Doctor consultation & wisdom tooth procedure',
+    status: 'Approved',
+    head_approved: true,
+    final_approved: true,
+    created_at: '2026-10-19T11:00:00Z',
+  },
+  {
+    id: 106,
+    employee_id: 6,
+    leave_type: 'Annual Leave',
+    start_date: '2026-12-01',
+    end_date: '2026-12-03',
+    reason: 'Semester break travel',
+    status: 'Pending',
+    head_approved: false,
+    final_approved: false,
+    created_at: '2026-11-08T16:00:00Z',
+  },
+  {
+    id: 107,
+    employee_id: 5,
+    leave_type: 'Annual Leave',
+    start_date: '2026-10-05',
+    end_date: '2026-10-07',
+    reason: 'Personal recreation and family time',
+    status: 'Approved',
+    head_approved: true,
+    final_approved: true,
+    created_at: '2026-09-28T09:00:00Z',
+  },
 ];
 
 // ----------------- GENERIC STORAGE HELPERS -----------------
@@ -377,6 +572,49 @@ export const deleteDepartment = async (id, departmentName) => {
 };
 
 
+// Helper to intelligently detect an employee's role/seniority tier
+export const detectRoleTier = (employee) => {
+  if (!employee) return 'Mid-Level';
+  if (employee.role_tier && ['Executive', 'Senior', 'Mid-Level', 'Junior'].includes(employee.role_tier)) {
+    return employee.role_tier;
+  }
+  const designation = (employee.designation || employee.role || '').toLowerCase();
+
+  if (
+    designation.includes('director') ||
+    designation.includes('vice president') ||
+    designation.includes('vp') ||
+    designation.includes('chief') ||
+    designation.includes('head of') ||
+    designation.includes('c-level') ||
+    designation.includes('executive')
+  ) {
+    return 'Executive';
+  }
+
+  if (
+    designation.includes('senior') ||
+    designation.includes('lead') ||
+    designation.includes('principal') ||
+    designation.includes('architect') ||
+    designation.includes('manager')
+  ) {
+    return 'Senior';
+  }
+
+  if (
+    designation.includes('junior') ||
+    designation.includes('associate') ||
+    designation.includes('intern') ||
+    designation.includes('trainee') ||
+    designation.includes('assistant')
+  ) {
+    return 'Junior';
+  }
+
+  return 'Mid-Level';
+};
+
 // ==============================================================================
 // 2. EMPLOYEE OPERATIONS
 // ==============================================================================
@@ -433,7 +671,11 @@ export const getEmployees = async () => {
     });
   }
 
-  return combined;
+  // Ensure role_tier is present and consistent for every employee
+  return combined.map((emp) => ({
+    ...emp,
+    role_tier: emp.role_tier || detectRoleTier(emp),
+  }));
 };
 
 export const createEmployee = async (employeeData) => {
@@ -454,6 +696,10 @@ export const createEmployee = async (employeeData) => {
   }
 
   const fullNameStr = (employeeData.full_name || employeeData.name || '').trim();
+  const resolvedRoleTier = employeeData.role_tier || detectRoleTier({
+    designation: employeeData.designation,
+    department: employeeData.department,
+  });
 
   const localRecord = {
     id: `local-emp-${Date.now()}`,
@@ -464,6 +710,7 @@ export const createEmployee = async (employeeData) => {
     department: employeeData.department?.trim() || null,
     department_id: resolvedDeptId && !isNaN(resolvedDeptId) ? resolvedDeptId : null,
     designation: employeeData.designation?.trim() || null,
+    role_tier: resolvedRoleTier,
     salary: employeeData.salary ? Number(employeeData.salary) : 0,
     created_at: new Date().toISOString(),
   };
@@ -478,12 +725,18 @@ export const createEmployee = async (employeeData) => {
       department: localRecord.department,
       department_id: localRecord.department_id,
       designation: localRecord.designation,
+      role_tier: localRecord.role_tier,
       salary: localRecord.salary,
     };
 
     let res = null;
     if (fullNameStr) {
       res = await supabase.from('employees').insert([{ ...payload, full_name: fullNameStr }]).select();
+      if (res.error && (res.error.code === 'PGRST204' || res.error.message?.includes('role_tier'))) {
+        const fallbackNoTier = { ...payload };
+        delete fallbackNoTier.role_tier;
+        res = await supabase.from('employees').insert([{ ...fallbackNoTier, full_name: fullNameStr }]).select();
+      }
       if (res.error && (res.error.code === 'PGRST204' || res.error.message?.includes('full_name'))) {
         res = await supabase.from('employees').insert([{ ...payload, name: fullNameStr }]).select();
       }
@@ -509,6 +762,10 @@ export const updateEmployee = async (id, employeeData) => {
   const numericId = Number(id);
   const targetId = isNaN(numericId) ? id : numericId;
   const fullNameStr = (employeeData.full_name || employeeData.name || '').trim();
+  const resolvedRoleTier = employeeData.role_tier || detectRoleTier({
+    designation: employeeData.designation,
+    department: employeeData.department,
+  });
 
   const updatedRecord = {
     id: targetId,
@@ -519,6 +776,7 @@ export const updateEmployee = async (id, employeeData) => {
     department: employeeData.department?.trim() || null,
     department_id: employeeData.department_id ? Number(employeeData.department_id) : null,
     designation: employeeData.designation?.trim() || null,
+    role_tier: resolvedRoleTier,
     salary: employeeData.salary ? Number(employeeData.salary) : 0,
   };
 
@@ -532,10 +790,15 @@ export const updateEmployee = async (id, employeeData) => {
         department: updatedRecord.department,
         department_id: updatedRecord.department_id,
         designation: updatedRecord.designation,
+        role_tier: updatedRecord.role_tier,
         salary: updatedRecord.salary,
       };
 
       let res = await supabase.from('employees').update({ ...payload, full_name: fullNameStr }).eq('id', targetId).select();
+      if (res.error && (res.error.code === 'PGRST204' || res.error.message?.includes('role_tier'))) {
+        delete payload.role_tier;
+        res = await supabase.from('employees').update({ ...payload, full_name: fullNameStr }).eq('id', targetId).select();
+      }
       if (res.error && (res.error.code === 'PGRST204' || res.error.message?.includes('full_name'))) {
         res = await supabase.from('employees').update({ ...payload, name: fullNameStr }).eq('id', targetId).select();
       }
@@ -810,6 +1073,16 @@ export const getLeaveRequests = async () => {
       combined.push(r);
     }
   });
+
+  // Provide initial leave records for sample staff if database is unseeded
+  if (combined.length === 0) {
+    DEFAULT_SAMPLE_LEAVES.forEach((l) => {
+      const idKey = String(l.id);
+      if (!deletedSet.has(idKey)) {
+        combined.push(l);
+      }
+    });
+  }
 
   return combined;
 };
@@ -1277,6 +1550,284 @@ export const deletePayslipRecord = async (id, payrollId = null) => {
   }
 
   return true;
+};
+
+// ==============================================================================
+// 7. ROLE BENEFITS & LEAVE POLICIES (Configurable by HR)
+// ==============================================================================
+
+export const getCustomRoleBenefits = () => {
+  try {
+    const raw = localStorage.getItem(STORAGE_CUSTOM_ROLE_BENEFITS);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
+export const saveCustomRoleBenefits = (policies) => {
+  try {
+    localStorage.setItem(STORAGE_CUSTOM_ROLE_BENEFITS, JSON.stringify(policies));
+  } catch (e) {
+    console.warn('Storage save notice for role benefits:', e);
+  }
+};
+
+export const getRoleBenefits = async () => {
+  let dbPolicies = [];
+  try {
+    const { data, error } = await supabase
+      .from('role_benefits')
+      .select('*')
+      .order('id', { ascending: true });
+
+    if (!error && data && data.length > 0) {
+      dbPolicies = data;
+    }
+  } catch (err) {
+    console.warn('Supabase role_benefits query notice:', err);
+  }
+
+  // Dual sync with local storage
+  const localSaved = getCustomRoleBenefits();
+
+  // If cloud data exists, merge with any local customizations
+  if (dbPolicies.length > 0) {
+    if (localSaved && Array.isArray(localSaved) && localSaved.length > 0) {
+      const merged = dbPolicies.map((dbP) => {
+        const override = localSaved.find((lp) => lp.role_key === dbP.role_key);
+        return override ? { ...dbP, ...override } : dbP;
+      });
+      return merged;
+    }
+    return dbPolicies;
+  }
+
+  // Fallback: localSaved or DEFAULT_ROLE_BENEFITS
+  if (localSaved && Array.isArray(localSaved) && localSaved.length > 0) {
+    return localSaved;
+  }
+
+  return DEFAULT_ROLE_BENEFITS;
+};
+
+export const saveRoleBenefit = async (roleKey, updatedData) => {
+  const allCurrent = await getRoleBenefits();
+  const index = allCurrent.findIndex((p) => p.role_key === roleKey);
+
+  const updatedPolicy = {
+    ...(index >= 0 ? allCurrent[index] : {}),
+    ...updatedData,
+    role_key: roleKey,
+    updated_at: new Date().toISOString(),
+  };
+
+  let newAll;
+  if (index >= 0) {
+    newAll = [...allCurrent];
+    newAll[index] = updatedPolicy;
+  } else {
+    newAll = [...allCurrent, updatedPolicy];
+  }
+
+  saveCustomRoleBenefits(newAll);
+
+  // Attempt Supabase upsert
+  try {
+    const payload = {
+      role_key: updatedPolicy.role_key,
+      role_name: updatedPolicy.role_name,
+      annual_leaves: Number(updatedPolicy.annual_leaves) || 0,
+      sick_leaves: Number(updatedPolicy.sick_leaves) || 0,
+      casual_leaves: Number(updatedPolicy.casual_leaves) || 0,
+      emergency_leaves: Number(updatedPolicy.emergency_leaves) || 0,
+      health_insurance: updatedPolicy.health_insurance,
+      wellness_stipend: updatedPolicy.wellness_stipend,
+      learning_budget: updatedPolicy.learning_budget,
+      remote_work_policy: updatedPolicy.remote_work_policy,
+      bonus_percentage: updatedPolicy.bonus_percentage,
+      travel_allowance: updatedPolicy.travel_allowance,
+      equipment_stipend: updatedPolicy.equipment_stipend,
+      retirement_match: updatedPolicy.retirement_match,
+      additional_perks: updatedPolicy.additional_perks,
+      description: updatedPolicy.description,
+      updated_at: new Date().toISOString(),
+    };
+
+    const { data, error } = await supabase
+      .from('role_benefits')
+      .upsert(payload, { onConflict: 'role_key' })
+      .select();
+
+    if (!error && data && data[0]) {
+      const synced = { ...updatedPolicy, id: data[0].id };
+      const updatedIdx = newAll.findIndex((p) => p.role_key === roleKey);
+      if (updatedIdx >= 0) {
+        newAll[updatedIdx] = synced;
+        saveCustomRoleBenefits(newAll);
+      }
+      return synced;
+    }
+  } catch (err) {
+    console.warn('Supabase role_benefits upsert notice:', err);
+  }
+
+  return updatedPolicy;
+};
+
+export const resetRoleBenefitsToDefault = async () => {
+  saveCustomRoleBenefits(DEFAULT_ROLE_BENEFITS);
+  try {
+    for (const pol of DEFAULT_ROLE_BENEFITS) {
+      await supabase.from('role_benefits').upsert({
+        role_key: pol.role_key,
+        role_name: pol.role_name,
+        annual_leaves: pol.annual_leaves,
+        sick_leaves: pol.sick_leaves,
+        casual_leaves: pol.casual_leaves,
+        emergency_leaves: pol.emergency_leaves,
+        health_insurance: pol.health_insurance,
+        wellness_stipend: pol.wellness_stipend,
+        learning_budget: pol.learning_budget,
+        remote_work_policy: pol.remote_work_policy,
+        bonus_percentage: pol.bonus_percentage,
+        travel_allowance: pol.travel_allowance,
+        equipment_stipend: pol.equipment_stipend,
+        retirement_match: pol.retirement_match,
+        additional_perks: pol.additional_perks,
+        description: pol.description,
+      }, { onConflict: 'role_key' });
+    }
+  } catch (e) {
+    console.warn('Reset role benefits supabase warning:', e);
+  }
+  return DEFAULT_ROLE_BENEFITS;
+};
+
+// ==============================================================================
+// 8. LEAVE CALCULATIONS & EMPLOYEE BENEFIT SUMMARY
+// ==============================================================================
+
+export const calculateLeaveDays = (startDate, endDate) => {
+  if (!startDate) return 0;
+  if (!endDate) return 1;
+  const start = new Date(startDate);
+  const end = new Date(endDate);
+  if (isNaN(start.getTime()) || isNaN(end.getTime())) return 1;
+  const diffTime = end.getTime() - start.getTime();
+  if (diffTime < 0) return 1;
+  const diffDays = Math.round(diffTime / (1000 * 60 * 60 * 24)) + 1;
+  return Math.max(1, diffDays);
+};
+
+export const calculateEmployeeLeavesSummary = (employeeId, allLeaves = [], rolePolicy = {}) => {
+  const empIdStr = String(employeeId);
+  const empLeaves = allLeaves.filter((l) => String(l.employee_id) === empIdStr);
+
+  // Policy quotas
+  const quotaAnnual = Number(rolePolicy?.annual_leaves) || 20;
+  const quotaSick = Number(rolePolicy?.sick_leaves) || 10;
+  const quotaCasual = Number(rolePolicy?.casual_leaves) || 6;
+  const quotaEmergency = Number(rolePolicy?.emergency_leaves) || 3;
+  const totalQuota = quotaAnnual + quotaSick + quotaCasual + quotaEmergency;
+
+  // Breakdown of leaves
+  let usedAnnual = 0;
+  let usedSick = 0;
+  let usedCasual = 0;
+  let usedEmergency = 0;
+  let usedOther = 0;
+
+  const approvedLeaves = [];
+  const pendingLeaves = [];
+  const rejectedLeaves = [];
+
+  empLeaves.forEach((leave) => {
+    const days = calculateLeaveDays(leave.start_date, leave.end_date);
+    const enrichedLeave = { ...leave, daysCount: days };
+
+    if (leave.status === 'Approved') {
+      approvedLeaves.push(enrichedLeave);
+      const type = (leave.leave_type || '').toLowerCase();
+      if (type.includes('annual')) usedAnnual += days;
+      else if (type.includes('sick')) usedSick += days;
+      else if (type.includes('casual')) usedCasual += days;
+      else if (type.includes('emergency')) usedEmergency += days;
+      else usedOther += days;
+    } else if (leave.status === 'Pending') {
+      pendingLeaves.push(enrichedLeave);
+    } else if (leave.status === 'Rejected') {
+      rejectedLeaves.push(enrichedLeave);
+    }
+  });
+
+  const totalUsed = usedAnnual + usedSick + usedCasual + usedEmergency + usedOther;
+  const remainingAnnual = Math.max(0, quotaAnnual - usedAnnual);
+  const remainingSick = Math.max(0, quotaSick - usedSick);
+  const remainingCasual = Math.max(0, quotaCasual - usedCasual);
+  const remainingEmergency = Math.max(0, quotaEmergency - usedEmergency);
+  const totalRemaining = Math.max(0, totalQuota - totalUsed);
+
+  // Find last leave taken (most recent approved leave)
+  const sortedApproved = [...approvedLeaves].sort(
+    (a, b) => new Date(b.start_date || b.created_at) - new Date(a.start_date || a.created_at)
+  );
+  const lastApprovedLeave = sortedApproved[0] || null;
+
+  let lastLeaveInfo = null;
+  if (lastApprovedLeave) {
+    const startDate = new Date(lastApprovedLeave.start_date);
+    const today = new Date();
+    const daysAgo = Math.floor((today - startDate) / (1000 * 60 * 60 * 24));
+    lastLeaveInfo = {
+      ...lastApprovedLeave,
+      daysAgo: daysAgo >= 0 ? daysAgo : 0,
+    };
+  }
+
+  // All leaves sorted newest first
+  const history = [...empLeaves].sort(
+    (a, b) => new Date(b.created_at || b.start_date) - new Date(a.created_at || a.start_date)
+  );
+
+  return {
+    quotas: {
+      annual: quotaAnnual,
+      sick: quotaSick,
+      casual: quotaCasual,
+      emergency: quotaEmergency,
+      total: totalQuota,
+    },
+    used: {
+      annual: usedAnnual,
+      sick: usedSick,
+      casual: usedCasual,
+      emergency: usedEmergency,
+      other: usedOther,
+      total: totalUsed,
+    },
+    remaining: {
+      annual: remainingAnnual,
+      sick: remainingSick,
+      casual: remainingCasual,
+      emergency: remainingEmergency,
+      total: totalRemaining,
+    },
+    counts: {
+      total: empLeaves.length,
+      approved: approvedLeaves.length,
+      approvedDays: totalUsed,
+      pending: pendingLeaves.length,
+      pendingDays: pendingLeaves.reduce((acc, curr) => acc + (curr.daysCount || 1), 0),
+      rejected: rejectedLeaves.length,
+      rejectedDays: rejectedLeaves.reduce((acc, curr) => acc + (curr.daysCount || 1), 0),
+    },
+    lastLeave: lastLeaveInfo,
+    history,
+    approvedLeaves,
+    pendingLeaves,
+    rejectedLeaves,
+  };
 };
 
 export { getDeletedPayslipIds, getDeletedPayrollIds };

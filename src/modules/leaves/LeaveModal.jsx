@@ -3,9 +3,10 @@ import { Modal } from '../../components/common/Modal';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { Select } from '../../components/common/Select';
-import { Calendar, User, FileText, ShieldAlert } from 'lucide-react';
+import { Calendar, User, FileText, ShieldAlert, Lock, UserCheck, AlertCircle } from 'lucide-react';
 import { getEmployees } from '../../utils/dbHelpers';
 import { getEmployeeDisplayName } from '../../utils/formatters';
+import { useAuth } from '../../context/AuthContext';
 
 export const LeaveModal = ({
   isOpen,
@@ -15,9 +16,23 @@ export const LeaveModal = ({
   error,
   clearError,
   employees: passedEmployees = [],
+  currentEmployee: passedCurrentEmployee,
 }) => {
+  const { currentEmployee: authEmployee, user } = useAuth();
+
+  const [employees, setEmployees] = useState(passedEmployees || []);
+  const [fieldErrors, setFieldErrors] = useState({});
+
+  // Resolve the active logged-in employee record (locked to this account only)
+  const activeEmployee =
+    passedCurrentEmployee ||
+    authEmployee ||
+    employees.find(
+      (e) => (e.email || '').toLowerCase().trim() === (user?.email || '').toLowerCase().trim()
+    );
+
   const [formData, setFormData] = useState({
-    employee_id: '',
+    employee_id: activeEmployee?.id || '',
     leave_type: 'Annual Leave',
     start_date: new Date().toISOString().split('T')[0],
     end_date: new Date().toISOString().split('T')[0],
@@ -26,9 +41,6 @@ export const LeaveModal = ({
     head_approved: false,
     final_approved: false,
   });
-
-  const [employees, setEmployees] = useState(passedEmployees || []);
-  const [fieldErrors, setFieldErrors] = useState({});
 
   useEffect(() => {
     if (passedEmployees && passedEmployees.length > 0) {
@@ -48,8 +60,9 @@ export const LeaveModal = ({
 
   useEffect(() => {
     if (isOpen) {
+      const empId = activeEmployee?.id || '';
       setFormData({
-        employee_id: '',
+        employee_id: empId,
         leave_type: 'Annual Leave',
         start_date: new Date().toISOString().split('T')[0],
         end_date: new Date().toISOString().split('T')[0],
@@ -61,12 +74,13 @@ export const LeaveModal = ({
       setFieldErrors({});
       if (clearError) clearError();
     }
-  }, [isOpen]);
+  }, [isOpen, activeEmployee]);
 
   const validate = () => {
     const errors = {};
-    if (!formData.employee_id) {
-      errors.employee_id = 'Please select an applicant employee';
+    const empId = activeEmployee?.id || formData.employee_id;
+    if (!empId) {
+      errors.employee_id = 'No verified employee profile found for your account. Please log in with a valid account.';
     }
     if (!formData.start_date) {
       errors.start_date = 'Start date is required';
@@ -85,7 +99,11 @@ export const LeaveModal = ({
     e.preventDefault();
     if (clearError) clearError();
     if (!validate()) return;
-    onSave(formData);
+    const finalEmpId = activeEmployee?.id || formData.employee_id;
+    onSave({
+      ...formData,
+      employee_id: finalEmpId,
+    });
   };
 
   return (
@@ -93,7 +111,7 @@ export const LeaveModal = ({
       isOpen={isOpen}
       onClose={onClose}
       title="Submit Leave Request"
-      subtitle="Initializes Two-Level Approval Workflow (Stage 1: Dept Head Review)"
+      subtitle="Leave requests are strictly locked to your employee account (Stage 1: Dept Head Review)"
       size="md"
       showClose={!loading}
     >
@@ -109,23 +127,55 @@ export const LeaveModal = ({
           </div>
         )}
 
-        <Select
-          label="Select Employee (Applicant)"
-          value={formData.employee_id}
-          onChange={(e) => {
-            setFormData({ ...formData, employee_id: e.target.value });
-            if (fieldErrors.employee_id) setFieldErrors({ ...fieldErrors, employee_id: '' });
-          }}
-          error={fieldErrors.employee_id}
-          required
-          placeholder="Choose staff applicant..."
-        >
-          {employees.map((emp) => (
-            <option key={emp.id} value={emp.id}>
-              {getEmployeeDisplayName(emp)} ({emp.designation || emp.department || 'Staff'})
-            </option>
-          ))}
-        </Select>
+        {/* Locked Applicant Account Card (Other accounts cannot fill for someone else) */}
+        <div>
+          <label className="block text-xs font-semibold uppercase tracking-wider text-[#424769] mb-1.5 flex items-center justify-between">
+            <span className="flex items-center gap-1.5">
+              <User className="w-3.5 h-3.5 text-[#FFB17A]" />
+              Applicant Account
+            </span>
+            <span className="text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full flex items-center gap-1">
+              <Lock className="w-2.5 h-2.5" /> Locked to Your Account
+            </span>
+          </label>
+
+          {activeEmployee ? (
+            <div className="rounded-xl border border-gray-200 bg-gray-50/80 p-3.5 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3 min-w-0">
+                <div className="h-10 w-10 rounded-xl bg-[#2D3250] text-[#FFB17A] flex items-center justify-center font-bold text-base shadow-xs shrink-0">
+                  {(activeEmployee.full_name || activeEmployee.name || user?.email || 'U').charAt(0).toUpperCase()}
+                </div>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-bold text-[#2D3250] truncate">
+                      {getEmployeeDisplayName(activeEmployee)}
+                    </p>
+                    <span className="text-[10px] font-semibold bg-white border border-gray-200 px-1.5 py-0.5 rounded text-gray-600">
+                      {activeEmployee.role_tier || 'Mid-Level'}
+                    </span>
+                  </div>
+                  <p className="text-xs text-gray-500 truncate mt-0.5">
+                    {activeEmployee.designation || 'Staff'} &bull; {activeEmployee.department || 'General'}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <span className="inline-flex items-center gap-1 text-[11px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2.5 py-1 rounded-lg">
+                  <UserCheck className="w-3.5 h-3.5" /> Authenticated
+                </span>
+              </div>
+            </div>
+          ) : (
+            <div className="p-3.5 rounded-xl bg-amber-50 border border-amber-200 text-amber-800 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+              <span>Identifying employee profile for your account ({user?.email || 'current user'})...</span>
+            </div>
+          )}
+
+          {fieldErrors.employee_id && (
+            <p className="mt-1 text-xs text-rose-500 font-semibold">{fieldErrors.employee_id}</p>
+          )}
+        </div>
 
         <Select
           label="Leave Category"

@@ -30,8 +30,13 @@ import {
 } from '../../utils/dbHelpers';
 import { formatCurrency, formatDate, getEmployeeDisplayName } from '../../utils/formatters';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
+import { Lock } from 'lucide-react';
 
 export const PayrollManagement = ({ setActiveTab, onSelectPayslipPayroll }) => {
+  const { role: userRole, isEmployee } = useAuth();
+  const isEmployeeRole = Boolean(isEmployee || userRole === 'Employee');
+
   const [payrolls, setPayrolls] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -168,6 +173,29 @@ export const PayrollManagement = ({ setActiveTab, onSelectPayslipPayroll }) => {
 
     return matchesSearch && matchesStatus;
   });
+
+  if (isEmployeeRole) {
+    return (
+      <div className="p-12 text-center bg-white rounded-3xl border border-gray-100 shadow-sm space-y-4 max-w-lg mx-auto mt-12 animate-in fade-in">
+        <div className="h-16 w-16 mx-auto rounded-2xl bg-amber-50 text-amber-600 flex items-center justify-center">
+          <Lock className="w-8 h-8" />
+        </div>
+        <h2 className="text-xl font-bold text-[#2D3250]">Payroll Access Restricted</h2>
+        <p className="text-sm text-gray-500 leading-relaxed">
+          Company-wide payroll processing is restricted to HR and Finance administration. You can inspect and download your personal salary vouchers in the Payslips portal.
+        </p>
+        {setActiveTab && (
+          <Button
+            variant="accent"
+            onClick={() => setActiveTab('payslips')}
+            className="font-bold cursor-pointer"
+          >
+            Go to My Payslips
+          </Button>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 animate-in fade-in duration-300">

@@ -9,10 +9,14 @@ import {
   Eye,
   Mail,
   Building2,
-  DollarSign,
   Phone,
   RefreshCw,
   AlertCircle,
+  Award,
+  Lock,
+  ShieldCheck,
+  UserCheck,
+  ArrowRight,
 } from 'lucide-react';
 import { Button } from '../../components/common/Button';
 import { Badge } from '../../components/common/Badge';
@@ -29,8 +33,15 @@ import {
 } from '../../utils/dbHelpers';
 import { formatCurrency, formatDate, getEmployeeDisplayName } from '../../utils/formatters';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
 
-export const EmployeeManagement = () => {
+export const EmployeeManagement = ({ setActiveTab }) => {
+  const { role: userRole, isHR, isDeptHead, isSuperAdmin, isEmployee, currentEmployee, user } = useAuth();
+
+  // Only standard employees cannot add employees; Department Heads, HR, and Admin can all add employees
+  const isEmployeeRole = Boolean(isEmployee || userRole === 'Employee');
+  const canManageEmployees = !isEmployeeRole;
+
   const [employees, setEmployees] = useState([]);
   const [departments, setDepartments] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -70,12 +81,20 @@ export const EmployeeManagement = () => {
   }, []);
 
   const handleOpenCreateModal = () => {
+    if (!canManageEmployees) {
+      showToast('Permission Denied: Standard employees cannot add employees. Department Heads and HR departments are authorized.', 'error');
+      return;
+    }
     setSelectedEmployee(null);
     setModalError(null);
     setIsModalOpen(true);
   };
 
   const handleOpenEditModal = (emp) => {
+    if (!canManageEmployees) {
+      showToast('Permission Denied: Standard employees cannot edit employee profiles.', 'error');
+      return;
+    }
     setSelectedEmployee(emp);
     setModalError(null);
     setIsModalOpen(true);
@@ -85,6 +104,14 @@ export const EmployeeManagement = () => {
     try {
       setActionLoading(true);
       setModalError(null);
+
+      // Only standard employees cannot add employees; Head, HR, Admin can all add
+      if (!selectedEmployee && !canManageEmployees) {
+        throw new Error('Permission Denied: Standard employees cannot add employees. Department Heads and HR departments are authorized.');
+      }
+      if (selectedEmployee && !canManageEmployees) {
+        throw new Error('Permission Denied: Standard employees cannot edit employee records.');
+      }
 
       if (selectedEmployee) {
         await updateEmployee(selectedEmployee.id, formData);
@@ -99,8 +126,9 @@ export const EmployeeManagement = () => {
       await loadData();
     } catch (err) {
       console.error('Employee save error:', err);
-      setModalError(err);
-      showToast(err.message || 'Failed to save employee to database', 'error');
+      const msg = err.message || 'Failed to save employee to database';
+      setModalError(msg);
+      showToast(msg, 'error');
     } finally {
       setActionLoading(false);
     }
@@ -108,6 +136,11 @@ export const EmployeeManagement = () => {
 
   const handleDeleteEmployee = async () => {
     if (!deleteId) return;
+    if (!canManageEmployees) {
+      showToast('Permission Denied: Standard employees cannot delete employee accounts.', 'error');
+      setDeleteId(null);
+      return;
+    }
     try {
       setActionLoading(true);
       await deleteEmployee(deleteId);
@@ -121,16 +154,283 @@ export const EmployeeManagement = () => {
     }
   };
 
-  // Filtered employees list
+  // Department counts
+  const deptCounts = departments.map((dept) => {
+    const deptName = dept.department_name || dept.name || '';
+    const count = employees.filter(
+      (e) => (e.department || '').toLowerCase().trim() === deptName.toLowerCase().trim()
+    ).length;
+    return {
+      name: deptName,
+      count,
+      percentage: employees.length > 0 ? Math.round((count / employees.length) * 100) : 0,
+    };
+  });
+
+  const myDeptName = (currentEmployee?.department || '').toLowerCase().trim();
+  const myDeptStaffCount = employees.filter(
+    (e) => (e.department || '').toLowerCase().trim() === myDeptName
+  ).length;
+
+  const tierCounts = {
+    Executive: employees.filter((e) => (e.role_tier || '').toLowerCase() === 'executive').length,
+    Senior: employees.filter((e) => (e.role_tier || '').toLowerCase() === 'senior').length,
+    'Mid-Level': employees.filter((e) => (e.role_tier || 'mid-level').toLowerCase() === 'mid-level').length,
+    Junior: employees.filter((e) => (e.role_tier || '').toLowerCase() === 'junior').length,
+  };
+
+  if (loading) {
+    return <LoadingSpinner message="Loading employee workforce data..." size="lg" />;
+  }
+
+  // ==============================================================================
+  // 1. STANDARD EMPLOYEE VIEW: NUMBERS OF EMPLOYEES ONLY (NO INDIVIDUAL DETAIL TABLE)
+  // ==============================================================================
+  if (isEmployeeRole) {
+    return (
+      <div className="space-y-6 animate-in fade-in duration-300">
+        {/* Header */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 bg-white p-6 rounded-2xl border border-gray-100 shadow-xs">
+          <div>
+            <div className="flex items-center gap-2">
+              <span className="p-2 rounded-xl bg-[#2D3250] text-[#FFB17A]">
+                <Users className="w-5 h-5" />
+              </span>
+              <h1 className="text-2xl font-black text-[#2D3250]">Workforce Numbers & Headcount</h1>
+            </div>
+            <p className="text-xs font-medium text-[#676F9D] mt-1">
+              Active company workforce statistics, team counts, and departmental headcount
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-amber-50 border border-amber-200 text-xs font-bold text-amber-800">
+              <Lock className="w-3.5 h-3.5 text-amber-600" /> Headcount Numbers Only
+            </span>
+            <Button
+              variant="outline"
+              size="md"
+              icon={RefreshCw}
+              onClick={loadData}
+              title="Refresh numbers"
+              className="border-gray-200 text-xs"
+            >
+              Refresh
+            </Button>
+          </div>
+        </div>
+
+        {/* Primary Headcount Numbers Grid */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-5">
+          <div className="rounded-2xl bg-white p-5 border border-gray-100 shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#676F9D]">
+                Total Employees
+              </span>
+              <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
+                <Users className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-2 text-3xl font-black text-[#2D3250]">
+              {employees.length}
+            </div>
+            <p className="text-[11px] text-gray-500 mt-1">Total company workforce</p>
+          </div>
+
+          <div className="rounded-2xl bg-white p-5 border border-gray-100 shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#676F9D]">
+                Departments
+              </span>
+              <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+                <Building2 className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-2 text-3xl font-black text-[#2D3250]">
+              {departments.length}
+            </div>
+            <p className="text-[11px] text-gray-500 mt-1">Operational divisions</p>
+          </div>
+
+          <div className="rounded-2xl bg-white p-5 border border-gray-100 shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#676F9D]">
+                My Team Size
+              </span>
+              <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+                <UserCheck className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-2 text-3xl font-black text-emerald-700">
+              {myDeptStaffCount}
+            </div>
+            <p className="text-[11px] text-gray-500 mt-1 truncate">
+              In {currentEmployee?.department || 'My Department'}
+            </p>
+          </div>
+
+          <div className="rounded-2xl bg-white p-5 border border-gray-100 shadow-xs">
+            <div className="flex items-center justify-between">
+              <span className="text-xs font-bold uppercase tracking-wider text-[#676F9D]">
+                Experience Tiers
+              </span>
+              <div className="p-2 rounded-xl bg-amber-50 text-amber-600">
+                <Award className="w-4 h-4" />
+              </div>
+            </div>
+            <div className="mt-2 text-3xl font-black text-[#2D3250]">
+              4
+            </div>
+            <p className="text-[11px] text-gray-500 mt-1">Corporate grade tiers</p>
+          </div>
+        </div>
+
+        {/* Privacy Note */}
+        <div className="rounded-2xl bg-blue-50/70 border border-blue-200/80 p-4 text-xs text-blue-900 flex items-start sm:items-center gap-3">
+          <ShieldCheck className="w-5 h-5 text-blue-600 shrink-0 mt-0.5 sm:mt-0" />
+          <div className="flex-1">
+            <span className="font-bold">Workforce Privacy Active: </span>
+            <span>
+              Standard employee accounts have access to overall headcount figures and departmental numbers. Individual staff profiles, contacts, and personal employment files are restricted to HR Management and Department Heads.
+            </span>
+          </div>
+        </div>
+
+        {/* Department Numbers Breakdown Grid */}
+        <div className="rounded-2xl bg-white border border-gray-100 shadow-xs p-6">
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <h2 className="text-base font-bold text-[#2D3250] flex items-center gap-2">
+                <Building2 className="w-4 h-4 text-[#FFB17A]" />
+                Headcount by Department
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Staff distribution and numbers across active business units
+              </p>
+            </div>
+            <span className="text-xs font-bold text-[#676F9D]">
+              {departments.length} Units
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {deptCounts.map((dept, idx) => (
+              <div
+                key={idx}
+                className="p-4 rounded-xl border border-gray-100 bg-[#f8fafc] hover:bg-gray-50 transition-colors space-y-2"
+              >
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-sm text-[#2D3250] truncate">
+                    {dept.name}
+                  </span>
+                  <span className="px-2.5 py-0.5 rounded-full text-xs font-extrabold bg-[#2D3250] text-[#FFB17A]">
+                    {dept.count} Staff
+                  </span>
+                </div>
+                <div className="w-full bg-gray-200 h-2 rounded-full overflow-hidden">
+                  <div
+                    className="bg-[#FFB17A] h-2 rounded-full transition-all duration-500"
+                    style={{ width: `${Math.max(dept.percentage, 5)}%` }}
+                  />
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-gray-500">
+                  <span>Headcount Share</span>
+                  <span className="font-semibold text-gray-700">{dept.percentage}%</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Seniority & Role Tier Numbers */}
+        <div className="rounded-2xl bg-white border border-gray-100 shadow-xs p-6">
+          <div className="mb-4">
+            <h2 className="text-base font-bold text-[#2D3250] flex items-center gap-2">
+              <Award className="w-4 h-4 text-amber-500" />
+              Workforce Seniority Breakdown
+            </h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Staff counts by organizational experience tier
+            </p>
+          </div>
+
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="p-4 rounded-xl bg-purple-50/70 border border-purple-100 text-center">
+              <span className="text-[11px] font-bold uppercase text-purple-700">Executive Tier</span>
+              <div className="text-2xl font-black text-purple-900 mt-1">{tierCounts.Executive}</div>
+              <span className="text-[10px] text-purple-600 font-medium">Leadership Staff</span>
+            </div>
+            <div className="p-4 rounded-xl bg-indigo-50/70 border border-indigo-100 text-center">
+              <span className="text-[11px] font-bold uppercase text-indigo-700">Senior Tier</span>
+              <div className="text-2xl font-black text-indigo-900 mt-1">{tierCounts.Senior}</div>
+              <span className="text-[10px] text-indigo-600 font-medium">Senior Personnel</span>
+            </div>
+            <div className="p-4 rounded-xl bg-sky-50/70 border border-sky-100 text-center">
+              <span className="text-[11px] font-bold uppercase text-sky-700">Mid-Level Tier</span>
+              <div className="text-2xl font-black text-sky-900 mt-1">{tierCounts['Mid-Level']}</div>
+              <span className="text-[10px] text-sky-600 font-medium">Core Engineers & Staff</span>
+            </div>
+            <div className="p-4 rounded-xl bg-emerald-50/70 border border-emerald-100 text-center">
+              <span className="text-[11px] font-bold uppercase text-emerald-700">Junior Tier</span>
+              <div className="text-2xl font-black text-emerald-900 mt-1">{tierCounts.Junior}</div>
+              <span className="text-[10px] text-emerald-600 font-medium">Associates & Interns</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Quick Nav Action Cards for Employee Portal */}
+        {setActiveTab && (
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            <button
+              onClick={() => setActiveTab('profile')}
+              className="p-4 rounded-2xl bg-white border border-gray-100 hover:border-[#FFB17A] shadow-xs text-left transition-all cursor-pointer group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-sm text-[#2D3250]">My Profile & Info</span>
+                <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#FFB17A] group-hover:translate-x-1 transition-all" />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Review your designation, employee ID & contact</p>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('benefits')}
+              className="p-4 rounded-2xl bg-white border border-gray-100 hover:border-[#FFB17A] shadow-xs text-left transition-all cursor-pointer group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-sm text-[#2D3250]">My Benefits & Leaves</span>
+                <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#FFB17A] group-hover:translate-x-1 transition-all" />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Check remaining leaves, health & policy perks</p>
+            </button>
+
+            <button
+              onClick={() => setActiveTab('attendance')}
+              className="p-4 rounded-2xl bg-white border border-gray-100 hover:border-[#FFB17A] shadow-xs text-left transition-all cursor-pointer group"
+            >
+              <div className="flex items-center justify-between">
+                <span className="font-bold text-sm text-[#2D3250]">My Attendance</span>
+                <ArrowRight className="w-4 h-4 text-gray-400 group-hover:text-[#FFB17A] group-hover:translate-x-1 transition-all" />
+              </div>
+              <p className="text-xs text-gray-500 mt-1">Clock in/out & view your personal attendance logs</p>
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ==============================================================================
+  // 2. MANAGEMENT VIEW: HEADS & HR (FULL TABLE, CRUD, & DIRECTORY)
+  // ==============================================================================
   const filteredEmployees = employees.filter((emp) => {
     const matchesSearch =
       (emp.email && emp.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (emp.designation && emp.designation.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (emp.department && emp.department.toLowerCase().includes(searchTerm.toLowerCase())) ||
-      (emp.full_name && emp.full_name.toLowerCase().includes(searchTerm.toLowerCase()));
+      (emp.full_name && emp.full_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      String(emp.id).includes(searchTerm);
 
     const matchesDept = selectedDeptFilter ? emp.department === selectedDeptFilter : true;
-
     return matchesSearch && matchesDept;
   });
 
@@ -171,6 +471,54 @@ export const EmployeeManagement = () => {
         </div>
       </div>
 
+      {/* Headcount Stat Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+        <div className="rounded-2xl bg-white p-5 border border-gray-100 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#676F9D]">
+              Total Employees
+            </span>
+            <div className="p-2 rounded-xl bg-purple-50 text-purple-600">
+              <Users className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-black text-[#2D3250]">
+            {employees.length}
+          </div>
+          <p className="text-[11px] text-gray-500 mt-0.5">Total organization workforce</p>
+        </div>
+
+        <div className="rounded-2xl bg-white p-5 border border-gray-100 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#676F9D]">
+              Departments
+            </span>
+            <div className="p-2 rounded-xl bg-blue-50 text-blue-600">
+              <Building2 className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-black text-[#2D3250]">
+            {departments.length}
+          </div>
+          <p className="text-[11px] text-gray-500 mt-0.5">Active business divisions</p>
+        </div>
+
+        <div className="rounded-2xl bg-white p-5 border border-gray-100 shadow-sm">
+          <div className="flex items-center justify-between">
+            <span className="text-xs font-bold uppercase tracking-wider text-[#676F9D]">
+              {currentEmployee?.department || 'My Department'}
+            </span>
+            <div className="p-2 rounded-xl bg-emerald-50 text-emerald-600">
+              <UserCheck className="w-4 h-4" />
+            </div>
+          </div>
+          <div className="mt-2 text-2xl font-black text-emerald-700">
+            {myDeptStaffCount} <span className="text-xs font-semibold text-gray-500">Staff</span>
+          </div>
+          <p className="text-[11px] text-gray-500 mt-0.5">Team members in department</p>
+        </div>
+      </div>
+
       {/* Filters & Search */}
       <div className="rounded-2xl bg-white p-4 shadow-sm border border-gray-100 flex flex-col md:flex-row items-center justify-between gap-4">
         <div className="relative w-full md:w-80">
@@ -206,9 +554,7 @@ export const EmployeeManagement = () => {
 
       {/* Employees Table */}
       <div className="rounded-2xl bg-white shadow-sm border border-gray-100 overflow-hidden">
-        {loading ? (
-          <LoadingSpinner message="Fetching personnel roster..." />
-        ) : filteredEmployees.length === 0 ? (
+        {filteredEmployees.length === 0 ? (
           <div className="p-12 text-center space-y-3">
             <div className="inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100 text-[#676F9D]">
               <Users className="w-6 h-6" />
@@ -239,6 +585,7 @@ export const EmployeeManagement = () => {
                   <th className="px-6 py-4">Employee</th>
                   <th className="px-6 py-4">Department</th>
                   <th className="px-6 py-4">Designation</th>
+                  <th className="px-6 py-4">Benefit Tier</th>
                   <th className="px-6 py-4">Contact</th>
                   <th className="px-6 py-4">Salary (PKR)</th>
                   <th className="px-6 py-4 text-right">Actions</th>
@@ -247,6 +594,17 @@ export const EmployeeManagement = () => {
               <tbody className="divide-y divide-gray-100 text-xs">
                 {filteredEmployees.map((emp) => {
                   const displayName = getEmployeeDisplayName(emp);
+                  const isExec = (emp.role_tier || '').toLowerCase() === 'executive';
+                  const isSr = (emp.role_tier || '').toLowerCase() === 'senior';
+                  const isJr = (emp.role_tier || '').toLowerCase() === 'junior';
+                  const tierStyle = isExec
+                    ? 'bg-purple-100 text-purple-800 border-purple-200'
+                    : isSr
+                    ? 'bg-indigo-100 text-indigo-800 border-indigo-200'
+                    : isJr
+                    ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                    : 'bg-sky-100 text-sky-800 border-sky-200';
+
                   return (
                     <tr
                       key={emp.id}
@@ -275,6 +633,12 @@ export const EmployeeManagement = () => {
                       <td className="px-6 py-4 font-medium text-[#424769]">
                         {emp.designation || '-'}
                       </td>
+                      <td className="px-6 py-4">
+                        <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-extrabold border ${tierStyle}`}>
+                          <Award className="w-3 h-3" />
+                          {emp.role_tier || 'Mid-Level'}
+                        </span>
+                      </td>
                       <td className="px-6 py-4 text-gray-600 space-y-0.5">
                         <div className="flex items-center gap-1.5">
                           <Mail className="w-3 h-3 text-[#676F9D]" />
@@ -292,6 +656,15 @@ export const EmployeeManagement = () => {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-1">
+                          {setActiveTab && (
+                            <button
+                              onClick={() => setActiveTab('benefits')}
+                              className="p-1.5 text-amber-600 hover:text-amber-800 hover:bg-amber-50 rounded-lg transition-colors cursor-pointer"
+                              title="Inspect Benefits & Leaves Portal"
+                            >
+                              <Award className="w-4 h-4" />
+                            </button>
+                          )}
                           <button
                             onClick={() => setDetailsEmployee(emp)}
                             className="p-1.5 text-[#676F9D] hover:text-[#2D3250] hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
@@ -344,7 +717,9 @@ export const EmployeeManagement = () => {
         isOpen={!!detailsEmployee}
         onClose={() => setDetailsEmployee(null)}
         employee={detailsEmployee}
+        canViewSalary={true}
         onEdit={(emp) => handleOpenEditModal(emp)}
+        onViewBenefits={setActiveTab ? () => setActiveTab('benefits') : null}
       />
 
       {/* Delete Confirmation */}

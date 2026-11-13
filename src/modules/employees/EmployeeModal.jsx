@@ -3,8 +3,8 @@ import { Modal } from '../../components/common/Modal';
 import { Button } from '../../components/common/Button';
 import { Input } from '../../components/common/Input';
 import { SearchableSelect } from '../../components/common/SearchableSelect';
-import { Mail, Phone, Briefcase, Building2, User, ShieldAlert, Sparkles, AlertCircle } from 'lucide-react';
-import { getDepartments } from '../../utils/dbHelpers';
+import { Mail, Phone, Briefcase, Building2, User, ShieldAlert, Sparkles, AlertCircle, Award } from 'lucide-react';
+import { getDepartments, detectRoleTier } from '../../utils/dbHelpers';
 import { getDesignationsForDepartment, ALL_DESIGNATIONS, DEPARTMENT_DESIGNATIONS, PREDEFINED_DEPARTMENTS } from '../../utils/constants';
 
 export const EmployeeModal = ({ isOpen, onClose, onSave, employee, loading, error, clearError }) => {
@@ -15,6 +15,7 @@ export const EmployeeModal = ({ isOpen, onClose, onSave, employee, loading, erro
     department: '',
     department_id: '',
     designation: '',
+    role_tier: 'Mid-Level',
     salary: '',
   });
 
@@ -44,6 +45,7 @@ export const EmployeeModal = ({ isOpen, onClose, onSave, employee, loading, erro
         department: employee.department || '',
         department_id: employee.department_id ? String(employee.department_id) : '',
         designation: employee.designation || '',
+        role_tier: employee.role_tier || detectRoleTier(employee),
         salary: employee.salary !== null && employee.salary !== undefined ? String(employee.salary) : '',
       });
     } else {
@@ -54,6 +56,7 @@ export const EmployeeModal = ({ isOpen, onClose, onSave, employee, loading, erro
         department: '',
         department_id: '',
         designation: '',
+        role_tier: 'Mid-Level',
         salary: '',
       });
     }
@@ -107,11 +110,14 @@ export const EmployeeModal = ({ isOpen, onClose, onSave, employee, loading, erro
       }
     }
 
+    const suggestedTier = detectRoleTier({ designation: selectedRole, department: autoDeptName || formData.department });
+
     setFormData((prev) => ({
       ...prev,
       designation: selectedRole,
       department: autoDeptName || prev.department,
       department_id: autoDeptId || prev.department_id,
+      role_tier: prev.role_tier && prev.role_tier !== 'Mid-Level' ? prev.role_tier : suggestedTier,
     }));
 
     if (fieldErrors.designation) {
@@ -317,6 +323,28 @@ export const EmployeeModal = ({ isOpen, onClose, onSave, employee, loading, erro
             helperText="Contact phone number"
           />
 
+          <div>
+            <label className="block text-xs font-semibold text-[#2D3250] mb-1.5 flex items-center gap-1.5">
+              <Award className="w-3.5 h-3.5 text-[#FFB17A]" />
+              Benefits & Seniority Policy Tier
+            </label>
+            <select
+              value={formData.role_tier || 'Mid-Level'}
+              onChange={(e) => setFormData({ ...formData, role_tier: e.target.value })}
+              className="w-full rounded-xl border border-gray-200 bg-[#f8fafc] px-3.5 py-2.5 text-xs font-bold text-[#2D3250] focus:outline-none focus:ring-2 focus:ring-[#FFB17A]"
+            >
+              <option value="Executive">Executive Tier (30 Days Leaves & $100k Coverage)</option>
+              <option value="Senior">Senior Tier (25 Days Leaves & $50k Coverage)</option>
+              <option value="Mid-Level">Mid-Level Tier (20 Days Leaves & $25k Coverage)</option>
+              <option value="Junior">Junior Tier (15 Days Leaves & $12k Coverage)</option>
+            </select>
+            <p className="mt-1 text-[11px] text-gray-400">
+              Sets paid leave quotas, healthcare limit, and WFH/learning benefits
+            </p>
+          </div>
+        </div>
+
+        <div>
           <Input
             label="Base Monthly Salary (PKR)"
             type="number"

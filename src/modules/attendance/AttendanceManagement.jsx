@@ -30,8 +30,14 @@ import {
 } from '../../utils/dbHelpers';
 import { formatDate, formatTime, getEmployeeDisplayName } from '../../utils/formatters';
 import { useToast } from '../../context/ToastContext';
+import { useAuth } from '../../context/AuthContext';
+import { Lock, UserCheck, ShieldCheck } from 'lucide-react';
 
 export const AttendanceManagement = () => {
+  const { role: userRole, isHR, isDeptHead, isSuperAdmin, isEmployee, currentEmployee, user } = useAuth();
+  const isEmployeeRole = Boolean(isEmployee || userRole === 'Employee');
+  const canViewAllAttendance = Boolean(isHR || isSuperAdmin || isDeptHead || userRole === 'Department Head');
+
   const [records, setRecords] = useState([]);
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -74,12 +80,34 @@ export const AttendanceManagement = () => {
     try {
       setActionLoading(true);
       setModalError(null);
+
+      // Enforce: all accounts can only fill the personal attendance form for themselves
+      let effectiveEmpId = currentEmployee?.id || formData.employee_id;
+      if (!effectiveEmpId && user?.email) {
+        const found = employees.find(
+          (e) => (e.email || '').toLowerCase().trim() === user.email.toLowerCase().trim()
+        );
+        if (found) effectiveEmpId = found.id;
+      }
+      if (!effectiveEmpId) {
+        throw new Error('Could not identify your employee profile. You can only record personal attendance from your authenticated account.');
+      }
+      if (!selectedRecord && currentEmployee && String(formData.employee_id) !== String(currentEmployee.id)) {
+        throw new Error('Permission Denied: All accounts can only fill their own personal attendance form.');
+      }
+
       if (selectedRecord) {
+        if (!canViewAllAttendance && currentEmployee && String(selectedRecord.employee_id) !== String(currentEmployee.id)) {
+          throw new Error('Permission Denied: You cannot modify attendance records of other accounts.');
+        }
         await updateAttendance(selectedRecord.id, formData);
         showToast('Attendance log updated in database', 'success');
       } else {
-        await createAttendance(formData);
-        showToast('Attendance recorded in database', 'success');
+        await createAttendance({
+          ...formData,
+          employee_id: effectiveEmpId,
+        });
+        showToast('Personal attendance recorded in database', 'success');
       }
       setIsModalOpen(false);
       setSelectedRecord(null);
@@ -95,6 +123,11 @@ export const AttendanceManagement = () => {
 
   const handleDeleteAttendance = async () => {
     if (!deleteId) return;
+    if (!canViewAllAttendance) {
+      showToast('Permission Denied: Standard employees cannot delete attendance records.', 'error');
+      setDeleteId(null);
+      return;
+    }
     try {
       setActionLoading(true);
       await deleteAttendance(deleteId);
@@ -129,15 +162,29 @@ export const AttendanceManagement = () => {
     }
   };
 
+  // Only Head or HR can see who is on or attendance. Standard employees only see their own attendance records!
+  const scopedRecords = !canViewAllAttendance
+    ? records.filter((rec) => {
+        const empId = currentEmployee?.id;
+        const userEmail = (user?.email || '').toLowerCase().trim();
+        const recEmpId = rec.employee_id ? String(rec.employee_id) : '';
+        const recEmail = (rec.employees?.email || rec.email || '').toLowerCase().trim();
+
+        if (empId && recEmpId === String(empId)) return true;
+        if (userEmail && recEmail === userEmail) return true;
+        return false;
+      })
+    : records;
+
   // Today statistics
   const todayStr = new Date().toISOString().split('T')[0];
-  const todayRecords = records.filter((r) => r.attendance_date === todayStr);
+  const todayRecords = scopedRecords.filter((r) => r.attendance_date === todayStr);
   const presentToday = todayRecords.filter((r) => r.status === 'Present').length;
   const lateToday = todayRecords.filter((r) => r.status === 'Late').length;
   const absentToday = todayRecords.filter((r) => r.status === 'Absent').length;
 
   // Filtered table data
-  const filteredRecords = records.filter((rec) => {
+  const filteredRecords = scopedRecords.filter((rec) => {
     const emp = rec.employees || employees.find((e) => String(e.id) === String(rec.employee_id));
     const empName = getEmployeeDisplayName(emp).toLowerCase();
     const matchesSearch =
@@ -160,7 +207,9 @@ export const AttendanceManagement = () => {
             Attendance Management
           </h1>
           <p className="text-xs text-[#676F9D] mt-0.5">
-            Monitor clock-in activity, daily presence, and punctuality
+            {canViewAllAttendance
+              ? 'Monitor organization clock-in activity, presence, and punctuality'
+              : 'Log and monitor your personal attendance history'}
           </p>
         </div>
 
@@ -182,12 +231,27 @@ export const AttendanceManagement = () => {
               setSelectedRecord(null);
               setIsModalOpen(true);
             }}
-            className="font-bold shadow-md"
+            className="font-bold shadow-md cursor-pointer"
           >
-            Log Attendance
+            Log Personal Attendance
           </Button>
         </div>
       </div>
+
+      {/* Scope Banner for Standard Employees */}
+      {!canViewAllAttendance && (
+        <div className="rounded-2xl bg-amber-50/70 border border-amber-200/80 p-3.5 text-xs text-amber-900 flex items-center justify-between gap-3">
+          <div className="flex items-center gap-2.5">
+            <Lock className="w-4 h-4 text-amber-600 shrink-0" />
+            <span>
+              <strong>Personal Attendance Portal:</strong> You can only log and view your personal attendance. Organization-wide attendance is monitored by Department Heads and HR departments.
+            </span>
+          </div>
+          <span className="text-[11px] font-bold text-amber-800 bg-amber-100/80 px-2 py-0.5 rounded-full shrink-0">
+            Personal Mode
+          </span>
+        </div>
+      )}
 
       {/* Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
@@ -365,23 +429,27 @@ export const AttendanceManagement = () => {
                       </td>
                       <td className="px-6 py-4 text-right">
                         <div className="flex items-center justify-end gap-1">
-                          <button
-                            onClick={() => {
-                              setSelectedRecord(rec);
-                              setIsModalOpen(true);
-                            }}
-                            className="p-1.5 text-[#424769] hover:text-[#FFB17A] hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
-                            title="Edit Record"
-                          >
-                            <Edit className="w-4 h-4" />
-                          </button>
-                          <button
-                            onClick={() => setDeleteId(rec.id)}
-                            className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
-                            title="Delete Log"
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
+                          {canViewAllAttendance && (
+                            <>
+                              <button
+                                onClick={() => {
+                                  setSelectedRecord(rec);
+                                  setIsModalOpen(true);
+                                }}
+                                className="p-1.5 text-[#424769] hover:text-[#FFB17A] hover:bg-gray-100 rounded-lg transition-colors cursor-pointer"
+                                title="Edit Record"
+                              >
+                                <Edit className="w-4 h-4" />
+                              </button>
+                              <button
+                                onClick={() => setDeleteId(rec.id)}
+                                className="p-1.5 text-rose-500 hover:text-rose-700 hover:bg-rose-50 rounded-lg transition-colors cursor-pointer"
+                                title="Delete Log"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
@@ -407,6 +475,7 @@ export const AttendanceManagement = () => {
         error={modalError}
         clearError={() => setModalError(null)}
         employees={employees}
+        currentEmployee={currentEmployee}
       />
 
       {/* Delete Confirmation */}
